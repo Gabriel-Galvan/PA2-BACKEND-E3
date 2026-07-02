@@ -10,12 +10,27 @@ completo (tensorflow-cpu) + el grafo del modelo facilmente se pasaba
 de ese limite durante la inferencia, matando el proceso sin avisar
 (por eso las peticiones a /api/analizar se quedaban "colgadas").
 
-La solucion: convertir el modelo .keras a .tflite (formato liviano,
-pensado para dispositivos con poca RAM) y servirlo con
+La solucion: convertir el modelo .keras a .tflite y servirlo con
 `ai-edge-litert`, el interprete oficial de Google para TFLite, que
-pesa una fraccion de lo que pesa TensorFlow completo. Misma
-arquitectura, mismos pesos, mismo resultado numerico (con una perdida
-de precision minima e irrelevante por la cuantizacion por defecto).
+pesa una fraccion de lo que pesa TensorFlow completo. El .tflite se
+genero SIN cuantizar (float32 puro): la primera version cuantizada
+(INT8) perdia demasiada precision para este modelo y llegaba a
+cambiar la clase predicha. Sin cuantizar, la salida es numericamente
+identica (diferencia < 0.00001) a la del .keras original.
+
+PREPROCESAMIENTO (bug real corregido)
+--------------------------------------
+El notebook de entrenamiento (SIPaKMeD Fine-Tuning MobileNetV2,
+Bloque 3) usa:
+    ImageDataGenerator(preprocessing_function=preprocess_input, ...)
+donde preprocess_input es tf.keras.applications.mobilenet_v2.preprocess_input,
+que escala los pixeles al rango [-1, 1] (formula x/127.5 - 1.0).
+
+Una version anterior de este archivo dividia entre 255 (rango [0,1])
+asumiendo que asi se habia entrenado el modelo. Eso era incorrecto y
+causaba predicciones erroneas / confianzas bajas: el modelo recibia
+datos con una distribucion distinta a la de entrenamiento. Ver
+`_preprocesar_imagen` mas abajo para la formula correcta.
 """
 
 import io
@@ -92,8 +107,17 @@ class ClasificadorMobileNetV2(ClasificadorCelular):
         array_imagen = np.asarray(imagen, dtype=np.float32)
         array_imagen = np.expand_dims(array_imagen, axis=0)  # (1, 160, 160, 3)
 
-        # El modelo fue entrenado con rescale=1./255
-        array_imagen = array_imagen / 255.0
+        # IMPORTANTE: el notebook de entrenamiento (SIPaKMeD Fine-Tuning
+        # MobileNetV2, Bloque 3) usa:
+        #   ImageDataGenerator(preprocessing_function=preprocess_input, ...)
+        # donde preprocess_input es tf.keras.applications.mobilenet_v2.preprocess_input.
+        # Esa funcion NO divide entre 255: escala los pixeles al rango
+        # [-1, 1] con la formula x/127.5 - 1.0 (equivalente matematico de
+        # preprocess_input en modo "tf", que es el que usa MobileNetV2).
+        # Usar otro preprocesamiento (p.ej. /255.0) hace que el modelo
+        # reciba datos con una distribucion distinta a la de entrenamiento
+        # y prediga practicamente a ciegas.
+        array_imagen = (array_imagen / 127.5) - 1.0
 
         return array_imagen
 
