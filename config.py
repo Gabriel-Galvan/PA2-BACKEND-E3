@@ -24,7 +24,7 @@ class Config:
     DATABASE_URL = os.environ.get("DATABASE_URL")
 
     RUTA_MODELO_IA = os.environ.get(
-        "RUTA_MODELO_IA", os.path.join(BASE_DIR, "modelo_cancer_cervical.keras")
+        "RUTA_MODELO_IA", os.path.join(BASE_DIR, "modelo_cancer_cervical.tflite")
     )
 
     # CORS: agrega aqui la URL de tu frontend en Vercel cuando la tengas.
