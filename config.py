@@ -19,6 +19,10 @@ class Config:
         "RUTA_BASE_DE_DATOS", os.path.join(BASE_DIR, "database", "cervix_app.db")
     )
 
+    # Si DATABASE_URL esta presente (Render la inyecta al vincular un
+    # Postgres al servicio), se usa Postgres en vez de SQLite.
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+
     RUTA_MODELO_IA = os.environ.get(
         "RUTA_MODELO_IA", os.path.join(BASE_DIR, "modelo_cancer_cervical.keras")
     )

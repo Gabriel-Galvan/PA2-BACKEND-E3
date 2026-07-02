@@ -24,6 +24,7 @@ from application.use_cases.gestionar_usuarios import (
 )
 from config import Config
 from infrastructure.ml.clasificador_mobilenet import ClasificadorMobileNetV2
+from infrastructure.persistence.postgres_usuario_repository import RepositorioUsuariosPostgres
 from infrastructure.persistence.sqlite_usuario_repository import RepositorioUsuariosSQLite
 from infrastructure.security.auth_service import JWTAuthService
 from presentation.middlewares.auth_middleware import (
@@ -49,7 +50,13 @@ def crear_app(config: type[Config] = Config) -> Flask:
     CORS(app, origins=config.ORIGENES_PERMITIDOS, supports_credentials=True)
 
     # ----- INFRAESTRUCTURA -----
-    repo_usuarios = RepositorioUsuariosSQLite(config.RUTA_BASE_DE_DATOS)
+    # Si DATABASE_URL esta definida (Postgres vinculado en Render), se
+    # usa Postgres. Si no, se cae a SQLite (util para correr local sin
+    # tener que levantar un Postgres).
+    if config.DATABASE_URL:
+        repo_usuarios = RepositorioUsuariosPostgres(config.DATABASE_URL)
+    else:
+        repo_usuarios = RepositorioUsuariosSQLite(config.RUTA_BASE_DE_DATOS)
     auth_service = JWTAuthService(config.SECRET_KEY, config.HORAS_EXPIRACION_TOKEN)
     clasificador_ia = ClasificadorMobileNetV2(config.RUTA_MODELO_IA)
 
