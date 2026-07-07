@@ -130,6 +130,7 @@ class Expediente:
     nombre_paciente: str
     numero_documento: str
     fecha_nacimiento: str | None  # ISO 'YYYY-MM-DD', la edad se calcula al vuelo
+    sexo: str | None  # 'femenino' | 'masculino' | 'otro' | None, usado en el informe descargable
     historial_ginecologico: str
     sintomas: str
     observaciones: str
@@ -166,6 +167,7 @@ class Expediente:
             "nombre_paciente": self.nombre_paciente,
             "numero_documento": self.numero_documento,
             "fecha_nacimiento": self.fecha_nacimiento,
+            "sexo": self.sexo,
             "historial_ginecologico": self.historial_ginecologico,
             "sintomas": self.sintomas,
             "observaciones": self.observaciones,

@@ -156,6 +156,7 @@ class RepositorioExpedientes(ABC):
         nombre_paciente: str,
         numero_documento: str,
         fecha_nacimiento: str | None,
+        sexo: str | None,
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,

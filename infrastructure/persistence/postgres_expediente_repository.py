@@ -15,7 +15,7 @@ from domain.entities import Expediente
 from domain.repositories import RepositorioExpedientes
 
 _COLUMNAS_SIN_IMAGEN = (
-    "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, "
+    "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
     "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
     "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
     "creado_en, actualizado_en"
@@ -35,11 +35,11 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                 cursor.execute(
                     """
                     INSERT INTO expedientes (
-                        medico_id, nombre_paciente, numero_documento, fecha_nacimiento,
+                        medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                         historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                         confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
                         imagen_datos, creado_en, actualizado_en
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                     RETURNING id
                     """,
                     (
@@ -47,6 +47,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         expediente.nombre_paciente,
                         expediente.numero_documento,
                         expediente.fecha_nacimiento,
+                        expediente.sexo,
                         expediente.historial_ginecologico,
                         expediente.sintomas,
                         expediente.observaciones,
@@ -95,6 +96,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
         nombre_paciente: str,
         numero_documento: str,
         fecha_nacimiento: str | None,
+        sexo: str | None,
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
@@ -104,7 +106,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                 cursor.execute(
                     """
                     UPDATE expedientes SET
-                        nombre_paciente = %s, numero_documento = %s, fecha_nacimiento = %s,
+                        nombre_paciente = %s, numero_documento = %s, fecha_nacimiento = %s, sexo = %s,
                         historial_ginecologico = %s, sintomas = %s, observaciones = %s,
                         actualizado_en = NOW()
                     WHERE id = %s
@@ -113,6 +115,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         nombre_paciente,
                         numero_documento,
                         fecha_nacimiento,
+                        sexo,
                         historial_ginecologico,
                         sintomas,
                         observaciones,
@@ -145,6 +148,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
             nombre_paciente=fila["nombre_paciente"],
             numero_documento=fila["numero_documento"],
             fecha_nacimiento=str(fila["fecha_nacimiento"]) if fila["fecha_nacimiento"] else None,
+            sexo=fila.get("sexo"),
             historial_ginecologico=fila["historial_ginecologico"] or "",
             sintomas=fila["sintomas"] or "",
             observaciones=fila["observaciones"] or "",

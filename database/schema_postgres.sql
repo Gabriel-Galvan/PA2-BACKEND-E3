@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS expedientes (
     nombre_paciente         TEXT NOT NULL,
     numero_documento        TEXT NOT NULL,
     fecha_nacimiento        DATE,
+    sexo                    TEXT,
     historial_ginecologico  TEXT,
     sintomas                TEXT,
     observaciones           TEXT,
@@ -58,3 +59,7 @@ CREATE TABLE IF NOT EXISTS expedientes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_expedientes_medico_id ON expedientes(medico_id);
+
+-- Migracion aditiva: si la tabla `expedientes` ya existia de un deploy
+-- anterior (sin el campo sexo), esto agrega la columna sin romper nada.
+ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS sexo TEXT;

@@ -31,6 +31,17 @@ from domain.repositories import (
 
 EXTENSIONES_PERMITIDAS = {"png", "jpg", "jpeg", "tif", "tiff", "bmp"}
 TAMANO_MAXIMO_BYTES = 20 * 1024 * 1024  # 20 MB, igual al limite del analisis simple
+SEXOS_VALIDOS = {"femenino", "masculino", "otro"}
+
+
+def _normalizar_sexo(valor: str | None) -> str | None:
+    """El sexo es opcional (algunos registros historicos no lo tienen);
+    si viene con un valor reconocido se normaliza a minusculas, si no
+    se guarda como None en vez de fallar la creacion del expediente."""
+    if not valor:
+        return None
+    valor = valor.strip().lower()
+    return valor if valor in SEXOS_VALIDOS else None
 
 
 def _validar_imagen(nombre_archivo: str, bytes_imagen: bytes) -> None:
@@ -98,6 +109,7 @@ class CrearExpedienteCasoDeUso:
         nombre_paciente: str,
         numero_documento: str,
         fecha_nacimiento: str | None,
+        sexo: str | None,
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
@@ -116,6 +128,7 @@ class CrearExpedienteCasoDeUso:
             nombre_paciente=nombre_paciente.strip(),
             numero_documento=numero_documento.strip(),
             fecha_nacimiento=fecha_nacimiento or None,
+            sexo=_normalizar_sexo(sexo),
             historial_ginecologico=(historial_ginecologico or "").strip(),
             sintomas=(sintomas or "").strip(),
             observaciones=(observaciones or "").strip(),
@@ -181,6 +194,7 @@ class ActualizarExpedienteCasoDeUso:
         nombre_paciente: str,
         numero_documento: str,
         fecha_nacimiento: str | None,
+        sexo: str | None,
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
@@ -200,6 +214,7 @@ class ActualizarExpedienteCasoDeUso:
             nombre_paciente.strip(),
             numero_documento.strip(),
             fecha_nacimiento or None,
+            _normalizar_sexo(sexo),
             (historial_ginecologico or "").strip(),
             (sintomas or "").strip(),
             (observaciones or "").strip(),

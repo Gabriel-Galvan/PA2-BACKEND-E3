@@ -24,7 +24,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
         return conexion
 
     _COLUMNAS_SIN_IMAGEN = (
-        "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, "
+        "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
         "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
         "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
         "creado_en, actualizado_en"
@@ -36,17 +36,18 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
             cursor = conexion.execute(
                 """
                 INSERT INTO expedientes (
-                    medico_id, nombre_paciente, numero_documento, fecha_nacimiento,
+                    medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                     historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                     confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
                     imagen_datos, creado_en, actualizado_en
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     expediente.medico_id,
                     expediente.nombre_paciente,
                     expediente.numero_documento,
                     expediente.fecha_nacimiento,
+                    expediente.sexo,
                     expediente.historial_ginecologico,
                     expediente.sintomas,
                     expediente.observaciones,
@@ -93,6 +94,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
         nombre_paciente: str,
         numero_documento: str,
         fecha_nacimiento: str | None,
+        sexo: str | None,
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
@@ -101,7 +103,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
             cursor = conexion.execute(
                 """
                 UPDATE expedientes SET
-                    nombre_paciente = ?, numero_documento = ?, fecha_nacimiento = ?,
+                    nombre_paciente = ?, numero_documento = ?, fecha_nacimiento = ?, sexo = ?,
                     historial_ginecologico = ?, sintomas = ?, observaciones = ?,
                     actualizado_en = ?
                 WHERE id = ?
@@ -110,6 +112,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     nombre_paciente,
                     numero_documento,
                     fecha_nacimiento,
+                    sexo,
                     historial_ginecologico,
                     sintomas,
                     observaciones,
@@ -135,6 +138,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
             nombre_paciente=fila["nombre_paciente"],
             numero_documento=fila["numero_documento"],
             fecha_nacimiento=fila["fecha_nacimiento"],
+            sexo=fila["sexo"] if "sexo" in columnas else None,
             historial_ginecologico=fila["historial_ginecologico"] or "",
             sintomas=fila["sintomas"] or "",
             observaciones=fila["observaciones"] or "",

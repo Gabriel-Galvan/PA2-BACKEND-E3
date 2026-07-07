@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS expedientes (
     nombre_paciente         TEXT NOT NULL,
     numero_documento        TEXT NOT NULL,
     fecha_nacimiento        TEXT,
+    sexo                    TEXT,
     historial_ginecologico  TEXT,
     sintomas                TEXT,
     observaciones           TEXT,
