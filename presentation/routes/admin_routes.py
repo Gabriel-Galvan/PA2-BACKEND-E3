@@ -42,6 +42,7 @@ def crear_blueprint_admin(
                 "nombre_usuario": u.nombre_usuario,
                 "rol": u.rol.value,
                 "activo": u.activo,
+                "correo": u.correo,
                 "creado_en": u.creado_en.isoformat() if u.creado_en else None,
             }
             for u in usuarios
@@ -55,6 +56,7 @@ def crear_blueprint_admin(
         nombre_usuario = (datos.get("nombre_usuario") or "").strip()
         password = datos.get("contrasena") or ""
         rol_str = datos.get("rol", RolUsuario.MEDICO.value)
+        correo = (datos.get("correo") or "").strip() or None
 
         if not nombre_usuario or not password:
             return jsonify({"error": "nombre_usuario y contrasena son obligatorios"}), 400
@@ -65,7 +67,7 @@ def crear_blueprint_admin(
             return jsonify({"error": f"Rol invalido: {rol_str}"}), 400
 
         try:
-            usuario = caso_crear.ejecutar(nombre_usuario, password, rol)
+            usuario = caso_crear.ejecutar(nombre_usuario, password, rol, correo)
         except UsuarioYaExisteError as error:
             return jsonify({"error": str(error)}), 409
 
@@ -74,6 +76,7 @@ def crear_blueprint_admin(
             "nombre_usuario": usuario.nombre_usuario,
             "rol": usuario.rol.value,
             "activo": usuario.activo,
+            "correo": usuario.correo,
         }), 201
 
     @blueprint.route("/usuarios/<int:usuario_id>", methods=["DELETE"])

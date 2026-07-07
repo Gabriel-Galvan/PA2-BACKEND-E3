@@ -16,8 +16,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash   TEXT NOT NULL,
     rol             TEXT NOT NULL DEFAULT 'medico' CHECK (rol IN ('admin', 'medico')),
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en       TIMESTAMP NOT NULL
+    creado_en       TIMESTAMP NOT NULL,
+    correo          TEXT
 );
+
+-- Migracion aditiva: si la tabla `usuarios` ya existia (deploy previo
+-- sin este modulo), esto agrega la columna sin romper nada.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS correo TEXT;
 
 INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en)
 VALUES (
@@ -28,3 +33,28 @@ VALUES (
     '2026-01-01T00:00:00'
 )
 ON CONFLICT (nombre_usuario) DO NOTHING;
+
+-- ============================================================
+-- Modulo de Expedientes (PB-12): historial clinico relacional,
+-- un expediente por analisis de imagen guardado por un medico.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expedientes (
+    id                      SERIAL PRIMARY KEY,
+    medico_id               INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    nombre_paciente         TEXT NOT NULL,
+    numero_documento        TEXT NOT NULL,
+    fecha_nacimiento        DATE,
+    historial_ginecologico  TEXT,
+    sintomas                TEXT,
+    observaciones           TEXT,
+    diagnostico_ia          TEXT NOT NULL,
+    confianza_ia            DOUBLE PRECISION NOT NULL,
+    probabilidades_ia       TEXT,
+    nombre_archivo_imagen   TEXT,
+    imagen_mime             TEXT,
+    imagen_datos            BYTEA,
+    creado_en               TIMESTAMP NOT NULL DEFAULT NOW(),
+    actualizado_en          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expedientes_medico_id ON expedientes(medico_id);

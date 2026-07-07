@@ -36,3 +36,16 @@ class Config:
 
     DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     PUERTO = int(os.environ.get("PORT", os.environ.get("PUERTO", "5000")))
+
+    # Notificaciones por correo (modulo de Expedientes). Si SMTP_USER o
+    # SMTP_PASSWORD no estan definidas, el servicio cae automaticamente
+    # a "modo simulado" (solo registra el correo en los logs, no falla).
+    # Para activar el envio real con Gmail:
+    #   1. Habilita verificacion en 2 pasos en la cuenta de Gmail.
+    #   2. Genera una "contrasena de aplicacion" en myaccount.google.com/apppasswords
+    #   3. Define en Render: SMTP_USER=tu_correo@gmail.com, SMTP_PASSWORD=<esa contrasena>
+    SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+    SMTP_USER = os.environ.get("SMTP_USER")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+    SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Sistema de Diagnostico Cervical")

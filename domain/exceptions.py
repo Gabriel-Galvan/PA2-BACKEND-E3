@@ -29,3 +29,24 @@ class ImagenInvalidaError(ErrorDominio):
 
 class TokenInvalidoError(ErrorDominio):
     """Se lanza cuando el token JWT enviado no es valido o expiro."""
+
+
+class ExpedienteNoEncontradoError(ErrorDominio):
+    """Se lanza cuando se busca un expediente por id y no existe."""
+
+
+class AccesoNoAutorizadoError(ErrorDominio):
+    """
+    Se lanza cuando un medico intenta ver/editar/eliminar un
+    expediente que pertenece a otro medico (control de accesos:
+    'cada doctor tiene acceso solo a sus propios expedientes').
+    El rol admin esta exento de esta regla.
+    """
+
+
+class DatosPacienteInvalidosError(ErrorDominio):
+    """Se lanza cuando los datos clinicos del paciente son invalidos o incompletos."""
+
+
+class CorreoInvalidoError(ErrorDominio):
+    """Se lanza cuando el correo de notificaciones ingresado no tiene un formato valido."""

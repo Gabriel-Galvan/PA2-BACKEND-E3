@@ -58,6 +58,10 @@ class Usuario:
     plano, solo su hash. Calcular/verificar el hash es responsabilidad
     de la capa de infraestructura (infrastructure/security), no del
     dominio.
+
+    El campo `correo` es opcional: se usa para enviarle al medico una
+    notificacion cuando el analisis de una imagen de su expediente
+    termina con exito (ver ServicioCorreo / infrastructure/email).
     """
     id: int | None
     nombre_usuario: str
@@ -65,6 +69,7 @@ class Usuario:
     rol: RolUsuario
     activo: bool = True
     creado_en: datetime | None = None
+    correo: str | None = None
 
 
 @dataclass
@@ -89,3 +94,93 @@ class ResultadoClasificacion:
             "archivo": self.nombre_archivo,
             "fecha": self.generado_en.isoformat(),
         }
+
+
+# Clasificacion clinica de apoyo visual (criterio Bethesda / SIPaKMeD),
+# usada tanto para pintar el "badge" del expediente como para decidir
+# el tono del correo de notificacion. NO es un diagnostico definitivo.
+_SEVERIDAD_POR_CLASE: dict[str, str] = {
+    TipoCelula.SUPERFICIALES_INTERMEDIAS.value: "normal",
+    TipoCelula.PARABASALES.value: "normal",
+    TipoCelula.METAPLASICAS.value: "revisar",
+    TipoCelula.KOILOCITOTICAS.value: "revisar",
+    TipoCelula.DISQUERATOSICAS.value: "positivo",
+}
+
+
+@dataclass
+class Expediente:
+    """
+    Entidad central del Modulo de Historial Clinico (PB-12): agrupa,
+    para una imagen citologica ya analizada por el modelo de IA, los
+    datos del paciente y las observaciones clinicas que ingresa el
+    medico, junto con el resultado de IA y la imagen original.
+
+    Cada expediente pertenece a un unico medico (`medico_id`): un
+    medico solo puede ver/editar/eliminar sus propios expedientes; el
+    rol admin puede ver todos (control de accesos, PB-14).
+
+    La imagen se guarda como bytes crudos (columna BLOB/BYTEA) para
+    que el expediente sea autocontenido y no dependa de un disco local
+    efimero (Render free tier no garantiza almacenamiento persistente
+    en el filesystem del servicio web).
+    """
+    id: int | None
+    medico_id: int
+    nombre_paciente: str
+    numero_documento: str
+    fecha_nacimiento: str | None  # ISO 'YYYY-MM-DD', la edad se calcula al vuelo
+    historial_ginecologico: str
+    sintomas: str
+    observaciones: str
+    diagnostico_ia: str
+    confianza_ia: float
+    probabilidades_ia: dict[str, float]
+    nombre_archivo_imagen: str
+    imagen_mime: str
+    imagen_datos: bytes | None = None  # se omite al listar, solo viaja en el detalle
+    creado_en: datetime | None = None
+    actualizado_en: datetime | None = None
+
+    @property
+    def severidad(self) -> str:
+        """'normal' | 'revisar' | 'positivo', usado para el badge visual."""
+        return _SEVERIDAD_POR_CLASE.get(self.diagnostico_ia, "revisar")
+
+    @property
+    def codigo_expediente(self) -> str:
+        """Codigo tipo 'EXP-000123', solo cosmetico para que la UI se
+        sienta como un sistema clinico real."""
+        return f"EXP-{self.id:06d}" if self.id else "EXP-PENDIENTE"
+
+    def a_diccionario(self, incluir_imagen: bool = False) -> dict:
+        """
+        Serializa a JSON. Por defecto NO incluye la imagen (para que
+        el listado de expedientes sea liviano); el detalle de un
+        expediente individual si la incluye, codificada en base64.
+        """
+        datos = {
+            "id": self.id,
+            "codigo": self.codigo_expediente,
+            "medico_id": self.medico_id,
+            "nombre_paciente": self.nombre_paciente,
+            "numero_documento": self.numero_documento,
+            "fecha_nacimiento": self.fecha_nacimiento,
+            "historial_ginecologico": self.historial_ginecologico,
+            "sintomas": self.sintomas,
+            "observaciones": self.observaciones,
+            "diagnostico_ia": self.diagnostico_ia,
+            "confianza_ia": round(self.confianza_ia, 2),
+            "probabilidades_ia": {k: round(v, 2) for k, v in self.probabilidades_ia.items()},
+            "severidad": self.severidad,
+            "nombre_archivo_imagen": self.nombre_archivo_imagen,
+            "creado_en": self.creado_en.isoformat() if self.creado_en else None,
+            "actualizado_en": self.actualizado_en.isoformat() if self.actualizado_en else None,
+        }
+        if incluir_imagen and self.imagen_datos:
+            import base64
+
+            datos["imagen_base64"] = (
+                f"data:{self.imagen_mime};base64," + base64.b64encode(self.imagen_datos).decode("ascii")
+            )
+        return datos

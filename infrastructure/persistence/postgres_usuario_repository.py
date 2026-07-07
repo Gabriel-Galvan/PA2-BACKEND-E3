@@ -31,9 +31,20 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
         with self._conectar() as conexion:
             with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en "
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
                     "FROM usuarios WHERE nombre_usuario = %s",
                     (nombre_usuario,),
+                )
+                fila = cursor.fetchone()
+        return self._fila_a_entidad(fila) if fila else None
+
+    def obtener_por_id(self, usuario_id: int) -> Usuario | None:
+        with self._conectar() as conexion:
+            with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute(
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                    "FROM usuarios WHERE id = %s",
+                    (usuario_id,),
                 )
                 fila = cursor.fetchone()
         return self._fila_a_entidad(fila) if fila else None
@@ -42,20 +53,26 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
         with self._conectar() as conexion:
             with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en "
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
                     "FROM usuarios ORDER BY id"
                 )
                 filas = cursor.fetchall()
         return [self._fila_a_entidad(f) for f in filas]
 
-    def crear(self, nombre_usuario: str, password_hash: str, rol: RolUsuario) -> Usuario:
+    def crear(
+        self,
+        nombre_usuario: str,
+        password_hash: str,
+        rol: RolUsuario,
+        correo: str | None = None,
+    ) -> Usuario:
         creado_en = datetime.utcnow()
         with self._conectar() as conexion:
             with conexion.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en) "
-                    "VALUES (%s, %s, %s, TRUE, %s) RETURNING id",
-                    (nombre_usuario, password_hash, rol.value, creado_en),
+                    "INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en, correo) "
+                    "VALUES (%s, %s, %s, TRUE, %s, %s) RETURNING id",
+                    (nombre_usuario, password_hash, rol.value, creado_en, correo),
                 )
                 nuevo_id = cursor.fetchone()[0]
             conexion.commit()
@@ -66,6 +83,7 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
             rol=rol,
             activo=True,
             creado_en=creado_en,
+            correo=correo,
         )
 
     def eliminar(self, usuario_id: int) -> bool:
@@ -86,6 +104,16 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
             conexion.commit()
         return filas_afectadas > 0
 
+    def actualizar_correo(self, usuario_id: int, correo: str) -> bool:
+        with self._conectar() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE usuarios SET correo = %s WHERE id = %s", (correo, usuario_id)
+                )
+                filas_afectadas = cursor.rowcount
+            conexion.commit()
+        return filas_afectadas > 0
+
     @staticmethod
     def _fila_a_entidad(fila) -> Usuario:
         return Usuario(
@@ -95,4 +123,5 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
             rol=RolUsuario(fila["rol"]),
             activo=bool(fila["activo"]),
             creado_en=fila["creado_en"],
+            correo=fila.get("correo"),
         )

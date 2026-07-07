@@ -33,27 +33,42 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
     def obtener_por_nombre_usuario(self, nombre_usuario: str) -> Usuario | None:
         with self._conectar() as conexion:
             fila = conexion.execute(
-                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en "
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
                 "FROM usuarios WHERE nombre_usuario = ?",
                 (nombre_usuario,),
+            ).fetchone()
+        return self._fila_a_entidad(fila) if fila else None
+
+    def obtener_por_id(self, usuario_id: int) -> Usuario | None:
+        with self._conectar() as conexion:
+            fila = conexion.execute(
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                "FROM usuarios WHERE id = ?",
+                (usuario_id,),
             ).fetchone()
         return self._fila_a_entidad(fila) if fila else None
 
     def listar_todos(self) -> list[Usuario]:
         with self._conectar() as conexion:
             filas = conexion.execute(
-                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en "
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
                 "FROM usuarios ORDER BY id"
             ).fetchall()
         return [self._fila_a_entidad(f) for f in filas]
 
-    def crear(self, nombre_usuario: str, password_hash: str, rol: RolUsuario) -> Usuario:
+    def crear(
+        self,
+        nombre_usuario: str,
+        password_hash: str,
+        rol: RolUsuario,
+        correo: str | None = None,
+    ) -> Usuario:
         creado_en = datetime.utcnow().isoformat()
         with self._conectar() as conexion:
             cursor = conexion.execute(
-                "INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en) "
-                "VALUES (?, ?, ?, 1, ?)",
-                (nombre_usuario, password_hash, rol.value, creado_en),
+                "INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en, correo) "
+                "VALUES (?, ?, ?, 1, ?, ?)",
+                (nombre_usuario, password_hash, rol.value, creado_en, correo),
             )
             conexion.commit()
             nuevo_id = cursor.lastrowid
@@ -64,6 +79,7 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
             rol=rol,
             activo=True,
             creado_en=datetime.fromisoformat(creado_en),
+            correo=correo,
         )
 
     def eliminar(self, usuario_id: int) -> bool:
@@ -80,6 +96,14 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
             conexion.commit()
         return cursor.rowcount > 0
 
+    def actualizar_correo(self, usuario_id: int, correo: str) -> bool:
+        with self._conectar() as conexion:
+            cursor = conexion.execute(
+                "UPDATE usuarios SET correo = ? WHERE id = ?", (correo, usuario_id)
+            )
+            conexion.commit()
+        return cursor.rowcount > 0
+
     @staticmethod
     def _fila_a_entidad(fila: sqlite3.Row) -> Usuario:
         return Usuario(
@@ -89,4 +113,5 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
             rol=RolUsuario(fila["rol"]),
             activo=bool(fila["activo"]),
             creado_en=datetime.fromisoformat(fila["creado_en"]) if fila["creado_en"] else None,
+            correo=fila["correo"] if "correo" in fila.keys() else None,
         )

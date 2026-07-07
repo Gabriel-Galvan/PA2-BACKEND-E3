@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash   TEXT NOT NULL,
     rol             TEXT NOT NULL DEFAULT 'medico' CHECK (rol IN ('admin', 'medico')),
     activo          INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
-    creado_en       TEXT NOT NULL
+    creado_en       TEXT NOT NULL,
+    correo          TEXT
 );
 
 -- Usuario administrador de prueba: admin / 1234
@@ -41,3 +42,31 @@ VALUES (
     1,
     '2026-01-01T00:00:00'
 );
+
+-- ============================================================
+-- Modulo de Expedientes (PB-12): historial clinico relacional,
+-- un expediente por analisis de imagen guardado por un medico.
+-- Cada expediente pertenece a UN medico (medico_id); el control de
+-- accesos ("cada doctor solo ve sus propios expedientes") se aplica
+-- en application/use_cases/gestionar_expedientes.py.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expedientes (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    medico_id               INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    nombre_paciente         TEXT NOT NULL,
+    numero_documento        TEXT NOT NULL,
+    fecha_nacimiento        TEXT,
+    historial_ginecologico  TEXT,
+    sintomas                TEXT,
+    observaciones           TEXT,
+    diagnostico_ia          TEXT NOT NULL,
+    confianza_ia            REAL NOT NULL,
+    probabilidades_ia       TEXT,
+    nombre_archivo_imagen   TEXT,
+    imagen_mime             TEXT,
+    imagen_datos            BLOB,
+    creado_en               TEXT NOT NULL,
+    actualizado_en          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_expedientes_medico_id ON expedientes(medico_id);

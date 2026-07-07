@@ -5,11 +5,11 @@ Cubre el requerimiento del cronograma de Backend (Sesion 09-12):
 "funcionalidades administrativas, como mantenimiento, gestion de
 usuarios, permisos [...] al proyecto."
 
-De momento estos casos de uso solo administran la tabla `usuarios`
-de SQLite (login). La persistencia del HISTORIAL de analisis
-(PB-12, base de datos relacional completa con historial por medico)
-queda fuera de alcance por ahora, tal como se acordo: se
-implementara en una siguiente iteracion del proyecto.
+Estos casos de uso administran la tabla `usuarios` (login, roles,
+activacion). La persistencia del HISTORIAL de analisis (PB-12, base
+de datos relacional completa con historial por medico) se implemento
+en application/use_cases/gestionar_expedientes.py, sobre la tabla
+`expedientes`.
 """
 
 from domain.entities import RolUsuario, Usuario
@@ -34,12 +34,18 @@ class CrearUsuarioCasoDeUso:
         self._repo_usuarios = repo_usuarios
         self._auth_service = auth_service
 
-    def ejecutar(self, nombre_usuario: str, password_plano: str, rol: RolUsuario) -> Usuario:
+    def ejecutar(
+        self,
+        nombre_usuario: str,
+        password_plano: str,
+        rol: RolUsuario,
+        correo: str | None = None,
+    ) -> Usuario:
         if self._repo_usuarios.obtener_por_nombre_usuario(nombre_usuario) is not None:
             raise UsuarioYaExisteError(f"El usuario '{nombre_usuario}' ya existe")
 
         password_hash = self._auth_service.hashear_password(password_plano)
-        return self._repo_usuarios.crear(nombre_usuario, password_hash, rol)
+        return self._repo_usuarios.crear(nombre_usuario, password_hash, rol, correo)
 
 
 class EliminarUsuarioCasoDeUso:

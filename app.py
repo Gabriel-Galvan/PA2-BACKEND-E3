@@ -16,6 +16,14 @@ from flask_cors import CORS
 
 from application.use_cases.analizar_imagen import AnalizarImagenCasoDeUso
 from application.use_cases.autenticar_usuario import AutenticarUsuarioCasoDeUso
+from application.use_cases.gestionar_expedientes import (
+    ActualizarExpedienteCasoDeUso,
+    CrearExpedienteCasoDeUso,
+    EliminarExpedienteCasoDeUso,
+    ListarExpedientesCasoDeUso,
+    ObtenerExpedienteCasoDeUso,
+)
+from application.use_cases.gestionar_perfil import ActualizarCorreoUsuarioCasoDeUso
 from application.use_cases.gestionar_usuarios import (
     CambiarEstadoUsuarioCasoDeUso,
     CrearUsuarioCasoDeUso,
@@ -23,8 +31,11 @@ from application.use_cases.gestionar_usuarios import (
     ListarUsuariosCasoDeUso,
 )
 from config import Config
+from infrastructure.email.smtp_email_service import SMTPEmailService
 from infrastructure.ml.clasificador_mobilenet import ClasificadorMobileNetV2
+from infrastructure.persistence.postgres_expediente_repository import RepositorioExpedientesPostgres
 from infrastructure.persistence.postgres_usuario_repository import RepositorioUsuariosPostgres
+from infrastructure.persistence.sqlite_expediente_repository import RepositorioExpedientesSQLite
 from infrastructure.persistence.sqlite_usuario_repository import RepositorioUsuariosSQLite
 from infrastructure.security.auth_service import JWTAuthService
 from presentation.middlewares.auth_middleware import (
@@ -34,7 +45,9 @@ from presentation.middlewares.auth_middleware import (
 from presentation.routes.admin_routes import crear_blueprint_admin
 from presentation.routes.analysis_routes import crear_blueprint_analisis
 from presentation.routes.auth_routes import crear_blueprint_auth
+from presentation.routes.expediente_routes import crear_blueprint_expedientes
 from presentation.routes.health_routes import blueprint_salud
+from presentation.routes.perfil_routes import crear_blueprint_perfil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -55,10 +68,15 @@ def crear_app(config: type[Config] = Config) -> Flask:
     # tener que levantar un Postgres).
     if config.DATABASE_URL:
         repo_usuarios = RepositorioUsuariosPostgres(config.DATABASE_URL)
+        repo_expedientes = RepositorioExpedientesPostgres(config.DATABASE_URL)
     else:
         repo_usuarios = RepositorioUsuariosSQLite(config.RUTA_BASE_DE_DATOS)
+        repo_expedientes = RepositorioExpedientesSQLite(config.RUTA_BASE_DE_DATOS)
     auth_service = JWTAuthService(config.SECRET_KEY, config.HORAS_EXPIRACION_TOKEN)
     clasificador_ia = ClasificadorMobileNetV2(config.RUTA_MODELO_IA)
+    servicio_correo = SMTPEmailService(
+        config.SMTP_HOST, config.SMTP_PORT, config.SMTP_USER, config.SMTP_PASSWORD, config.SMTP_FROM_NAME
+    )
 
     # ----- CASOS DE USO -----
     caso_autenticar = AutenticarUsuarioCasoDeUso(repo_usuarios, auth_service)
@@ -67,6 +85,14 @@ def crear_app(config: type[Config] = Config) -> Flask:
     caso_eliminar_usuario = EliminarUsuarioCasoDeUso(repo_usuarios)
     caso_cambiar_estado_usuario = CambiarEstadoUsuarioCasoDeUso(repo_usuarios)
     caso_analizar_imagen = AnalizarImagenCasoDeUso(clasificador_ia)
+    caso_actualizar_correo = ActualizarCorreoUsuarioCasoDeUso(repo_usuarios)
+    caso_crear_expediente = CrearExpedienteCasoDeUso(
+        repo_expedientes, repo_usuarios, clasificador_ia, servicio_correo
+    )
+    caso_listar_expedientes = ListarExpedientesCasoDeUso(repo_expedientes)
+    caso_obtener_expediente = ObtenerExpedienteCasoDeUso(repo_expedientes)
+    caso_actualizar_expediente = ActualizarExpedienteCasoDeUso(repo_expedientes)
+    caso_eliminar_expediente = EliminarExpedienteCasoDeUso(repo_expedientes)
 
     # ----- MIDDLEWARES -----
     token_requerido = crear_decorador_token_requerido(auth_service)
@@ -85,6 +111,17 @@ def crear_app(config: type[Config] = Config) -> Flask:
         )
     )
     app.register_blueprint(crear_blueprint_analisis(caso_analizar_imagen, token_requerido))
+    app.register_blueprint(
+        crear_blueprint_expedientes(
+            caso_crear_expediente,
+            caso_listar_expedientes,
+            caso_obtener_expediente,
+            caso_actualizar_expediente,
+            caso_eliminar_expediente,
+            token_requerido,
+        )
+    )
+    app.register_blueprint(crear_blueprint_perfil(caso_actualizar_correo, token_requerido))
     app.register_blueprint(blueprint_salud)
     # NOTA: blueprint_vistas se elimino. El frontend ahora es estatico en Vercel.
 

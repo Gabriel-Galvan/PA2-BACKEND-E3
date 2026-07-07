@@ -23,11 +23,23 @@ def inicializar_base_de_datos() -> None:
     conexion = sqlite3.connect(RUTA_DB)
     try:
         conexion.executescript(script_sql)
+
+        # Migracion aditiva: si el archivo .db ya existia de una version
+        # anterior (sin el modulo de Expedientes/correo), CREATE TABLE
+        # IF NOT EXISTS no modifica una tabla `usuarios` que ya existe,
+        # asi que agregamos la columna aqui a mano. Si ya existe,
+        # sqlite3 lanza OperationalError y simplemente lo ignoramos.
+        try:
+            conexion.execute("ALTER TABLE usuarios ADD COLUMN correo TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         conexion.commit()
         print(f"Base de datos creada/actualizada correctamente en: {RUTA_DB}")
         print("Usuario de prueba -> usuario: admin | contrasena: 1234")
     finally:
         conexion.close()
+
 
 
 if __name__ == "__main__":
