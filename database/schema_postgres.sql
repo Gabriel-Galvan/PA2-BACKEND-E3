@@ -63,3 +63,10 @@ CREATE INDEX IF NOT EXISTS idx_expedientes_medico_id ON expedientes(medico_id);
 -- Migracion aditiva: si la tabla `expedientes` ya existia de un deploy
 -- anterior (sin el campo sexo), esto agrega la columna sin romper nada.
 ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS sexo TEXT;
+
+-- Migracion aditiva: deteccion multi-celula (detector YOLO + clasificador).
+-- Guarda TODAS las celulas que el detector encontro en la imagen de campo
+-- completo (bbox, clase, confianza de cada una) como JSON, como informacion
+-- de apoyo. diagnostico_ia/confianza_ia siguen siendo el hallazgo principal
+-- (el mas severo entre todas las celulas detectadas).
+ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS celulas_detectadas TEXT;

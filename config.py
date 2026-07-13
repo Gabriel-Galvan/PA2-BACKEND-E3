@@ -27,6 +27,16 @@ class Config:
         "RUTA_MODELO_IA", os.path.join(BASE_DIR, "modelo_cancer_cervical.tflite")
     )
 
+    # Detector de celulas (YOLOv8, etapa previa al clasificador). Debe
+    # coincidir con el imgsz usado al entrenar/exportar el detector
+    # (notebook detector_celulas_YOLOv8.ipynb, Bloque 5 y 8).
+    RUTA_MODELO_DETECTOR = os.environ.get(
+        "RUTA_MODELO_DETECTOR", os.path.join(BASE_DIR, "detector_celulas.tflite")
+    )
+    DETECTOR_IMGSZ = int(os.environ.get("DETECTOR_IMGSZ", "960"))
+    DETECTOR_UMBRAL_CONFIANZA = float(os.environ.get("DETECTOR_UMBRAL_CONFIANZA", "0.25"))
+    DETECTOR_UMBRAL_IOU = float(os.environ.get("DETECTOR_UMBRAL_IOU", "0.5"))
+
     # CORS: agrega aqui la URL de tu frontend en Vercel cuando la tengas.
     # Ejemplo: "https://mi-app.vercel.app,http://localhost:5500"
     ORIGENES_PERMITIDOS = os.environ.get(

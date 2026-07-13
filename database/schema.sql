@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS expedientes (
     nombre_archivo_imagen   TEXT,
     imagen_mime             TEXT,
     imagen_datos            BLOB,
+    celulas_detectadas      TEXT,
     creado_en               TEXT NOT NULL,
     actualizado_en          TEXT NOT NULL
 );

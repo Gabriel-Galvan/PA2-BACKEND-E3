@@ -75,25 +75,70 @@ class Usuario:
 @dataclass
 class ResultadoClasificacion:
     """
-    Resultado devuelto por el clasificador de IA para una sola imagen
-    citologica. Es la entidad central del Modulo II (Core de IA) y del
-    endpoint de prediccion del Modulo III (PB-11).
+    Resultado devuelto por el clasificador de IA para UNA celula
+    citologica (un recorte). Es la entidad central del Modulo II
+    (Core de IA) y del endpoint de prediccion del Modulo III (PB-11).
+
+    `bbox` es opcional: [x1, y1, x2, y2] en pixeles de la imagen
+    ORIGINAL de campo completo que subio el medico. Lo llena el
+    detector (infrastructure/ml/detector_yolo.py) cuando la
+    clasificacion viene de un pipeline de deteccion + clasificacion;
+    queda en None cuando se clasifica una imagen ya recortada
+    directamente (comportamiento legado / endpoint simple).
     """
     tipo_celula: TipoCelula
     confianza: float  # porcentaje 0-100
     probabilidades: dict[str, float] = field(default_factory=dict)  # todas las clases con su probabilidad
     nombre_archivo: str = ""
     generado_en: datetime = field(default_factory=datetime.utcnow)
+    bbox: list[int] | None = None  # [x1, y1, x2, y2] en pixeles de la imagen original, o None
 
     def a_diccionario(self) -> dict:
         """Convierte la entidad a un dict serializable a JSON para la API."""
-        return {
+        datos = {
             "diagnostico": self.tipo_celula.value,
             "confianza": round(self.confianza, 2),
             "probabilidades": {k: round(v, 2) for k, v in self.probabilidades.items()},
             "archivo": self.nombre_archivo,
             "fecha": self.generado_en.isoformat(),
         }
+        if self.bbox is not None:
+            datos["bbox"] = self.bbox
+        return datos
+
+
+# Orden de severidad clinica (de menor a mayor) usado para elegir, entre
+# varias celulas detectadas en una misma imagen, cual es el "hallazgo
+# principal" que se guarda como diagnostico del expediente (PB-12).
+# Mismo criterio que _SEVERIDAD_POR_CLASE mas abajo, pero a nivel de
+# clase de celula para poder comparar.
+_ORDEN_SEVERIDAD_CLASE: dict[str, int] = {
+    TipoCelula.SUPERFICIALES_INTERMEDIAS.value: 0,
+    TipoCelula.PARABASALES.value: 0,
+    TipoCelula.METAPLASICAS.value: 1,
+    TipoCelula.KOILOCITOTICAS.value: 1,
+    TipoCelula.DISQUERATOSICAS.value: 2,
+}
+
+
+def seleccionar_hallazgo_principal(
+    resultados: list[ResultadoClasificacion],
+) -> ResultadoClasificacion:
+    """
+    Dada la lista de celulas detectadas y clasificadas en una imagen de
+    campo completo, elige cual se reporta como EL diagnostico del
+    expediente: la de mayor severidad clinica (Disqueratosicas > Koilo/
+    Metaplasicas > Superficiales/Parabasales); si hay empate en
+    severidad, la de mayor confianza. Asi el expediente nunca "esconde"
+    el hallazgo mas grave detras de celulas normales.
+
+    Se asume que `resultados` no esta vacio (el caso de uso que llama
+    a esto es responsable de garantizarlo).
+    """
+    return max(
+        resultados,
+        key=lambda r: (_ORDEN_SEVERIDAD_CLASE.get(r.tipo_celula.value, 1), r.confianza),
+    )
 
 
 # Clasificacion clinica de apoyo visual (criterio Bethesda / SIPaKMeD),
@@ -142,6 +187,16 @@ class Expediente:
     imagen_datos: bytes | None = None  # se omite al listar, solo viaja en el detalle
     creado_en: datetime | None = None
     actualizado_en: datetime | None = None
+    # Lista de TODAS las celulas que el detector encontro en la imagen de
+    # campo completo (no solo la que se reporta como diagnostico_ia),
+    # cada una como {"bbox": [x1,y1,x2,y2], "clase": str, "confianza": float}.
+    # Informacion de apoyo para el medico; el diagnostico_ia/confianza_ia
+    # siguen siendo la fuente de verdad (el hallazgo mas severo, ver
+    # `seleccionar_hallazgo_principal`). Puede quedar None en expedientes
+    # antiguos creados antes de este campo, o si el detector no encontro
+    # ninguna celula y se uso el flujo de respaldo (imagen completa como
+    # una sola celula).
+    celulas_detectadas: list[dict] | None = None
 
     @property
     def severidad(self) -> str:
@@ -178,6 +233,8 @@ class Expediente:
             "nombre_archivo_imagen": self.nombre_archivo_imagen,
             "creado_en": self.creado_en.isoformat() if self.creado_en else None,
             "actualizado_en": self.actualizado_en.isoformat() if self.actualizado_en else None,
+            "celulas_detectadas": self.celulas_detectadas or [],
+            "total_celulas_detectadas": len(self.celulas_detectadas) if self.celulas_detectadas else 0,
         }
         if incluir_imagen and self.imagen_datos:
             import base64

@@ -90,6 +90,41 @@ class ClasificadorCelular(ABC):
         raise NotImplementedError
 
 
+class DetectorCelular(ABC):
+    """
+    Puerto (contrato) para el pipeline de deteccion + clasificacion:
+    recibe una foto de campo completo (varias celulas, tomada
+    directamente del microscopio) y devuelve la lista de TODAS las
+    celulas que encontro, cada una ya clasificada.
+
+    La implementacion concreta (YOLOv8 en TFLite para localizar cada
+    celula, reutilizando el `ClasificadorCelular` existente para
+    clasificar cada recorte) vive en infrastructure/ml/detector_yolo.py
+
+    Se separa de `ClasificadorCelular` (que clasifica UNA imagen ya
+    recortada) porque son responsabilidades distintas: localizar vs.
+    clasificar. `DetectorYOLOCelulas` internamente USA un
+    `ClasificadorCelular` por composicion, no lo reemplaza.
+    """
+
+    @abstractmethod
+    def detectar_y_clasificar(
+        self, bytes_imagen: bytes, nombre_archivo: str = ""
+    ) -> list[ResultadoClasificacion]:
+        """
+        Recibe los bytes crudos de una imagen citologica de campo
+        completo y devuelve una lista con una `ResultadoClasificacion`
+        (incluyendo su `bbox`) por cada celula detectada.
+
+        Nunca devuelve una lista vacia: si el detector no encuentra
+        ninguna celula (por ejemplo porque la imagen ya viene recortada
+        a una sola celula, comportamiento legado), cae a clasificar la
+        imagen completa como una unica celula (con `bbox=None`), para
+        que el sistema siga funcionando con imagenes de ese tipo.
+        """
+        raise NotImplementedError
+
+
 class ServicioAutenticacion(ABC):
     """
     Puerto (contrato) para hashear/verificar contrasenas y para

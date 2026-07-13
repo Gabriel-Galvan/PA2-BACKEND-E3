@@ -15,7 +15,7 @@ sistema ya le permite gestionar usuarios sin restriccion.
 
 from __future__ import annotations
 
-from domain.entities import Expediente, RolUsuario
+from domain.entities import Expediente, RolUsuario, seleccionar_hallazgo_principal
 from domain.exceptions import (
     AccesoNoAutorizadoError,
     DatosPacienteInvalidosError,
@@ -23,7 +23,7 @@ from domain.exceptions import (
     ImagenInvalidaError,
 )
 from domain.repositories import (
-    ClasificadorCelular,
+    DetectorCelular,
     RepositorioExpedientes,
     RepositorioUsuarios,
     ServicioCorreo,
@@ -79,13 +79,16 @@ def _verificar_propiedad(expediente: Expediente, usuario_id: int, rol: str) -> N
 class CrearExpedienteCasoDeUso:
     """
     Flujo completo al guardar una imagen ya analizada como expediente:
-      1. Valida y clasifica la imagen con el modelo de IA (misma
-         fuente de verdad que /api/analizar, para que el diagnostico
-         guardado sea siempre el que realmente calculo el modelo, no
-         uno que el cliente podria manipular).
-      2. Persiste el expediente completo (datos del paciente + imagen
-         + resultado de IA).
-      3. Intenta notificar por correo al medico dueno del expediente
+      1. Valida la imagen y corre el pipeline de deteccion + clasificacion:
+         el detector localiza cada celula en la foto de campo completo y
+         el clasificador (MobileNetV2) dice el tipo de cada una.
+      2. Entre todas las celulas detectadas, elige la de mayor severidad
+         clinica como el diagnostico principal del expediente (nunca se
+         "esconde" el hallazgo mas grave detras de celulas normales).
+      3. Persiste el expediente completo (datos del paciente + imagen +
+         diagnostico principal + lista de TODAS las celulas detectadas
+         como informacion de apoyo).
+      4. Intenta notificar por correo al medico dueno del expediente
          (best-effort: si falla el envio, el expediente igual se crea).
     """
 
@@ -93,12 +96,12 @@ class CrearExpedienteCasoDeUso:
         self,
         repo_expedientes: RepositorioExpedientes,
         repo_usuarios: RepositorioUsuarios,
-        clasificador: ClasificadorCelular,
+        detector: DetectorCelular,
         servicio_correo: ServicioCorreo,
     ):
         self._repo_expedientes = repo_expedientes
         self._repo_usuarios = repo_usuarios
-        self._clasificador = clasificador
+        self._detector = detector
         self._servicio_correo = servicio_correo
 
     def ejecutar(
@@ -120,7 +123,17 @@ class CrearExpedienteCasoDeUso:
             raise DatosPacienteInvalidosError("El numero de documento del paciente es obligatorio")
 
         _validar_imagen(nombre_archivo, bytes_imagen)
-        resultado_ia = self._clasificador.predecir(bytes_imagen, nombre_archivo)
+        resultados_ia = self._detector.detectar_y_clasificar(bytes_imagen, nombre_archivo)
+        hallazgo_principal = seleccionar_hallazgo_principal(resultados_ia)
+
+        celulas_detectadas = [
+            {
+                "bbox": r.bbox,
+                "clase": r.tipo_celula.value,
+                "confianza": round(r.confianza, 2),
+            }
+            for r in resultados_ia
+        ]
 
         expediente = Expediente(
             id=None,
@@ -132,12 +145,13 @@ class CrearExpedienteCasoDeUso:
             historial_ginecologico=(historial_ginecologico or "").strip(),
             sintomas=(sintomas or "").strip(),
             observaciones=(observaciones or "").strip(),
-            diagnostico_ia=resultado_ia.tipo_celula.value,
-            confianza_ia=resultado_ia.confianza,
-            probabilidades_ia=resultado_ia.probabilidades,
+            diagnostico_ia=hallazgo_principal.tipo_celula.value,
+            confianza_ia=hallazgo_principal.confianza,
+            probabilidades_ia=hallazgo_principal.probabilidades,
             nombre_archivo_imagen=nombre_archivo,
             imagen_mime=_mime_por_extension(nombre_archivo),
             imagen_datos=bytes_imagen,
+            celulas_detectadas=celulas_detectadas,
         )
         expediente_creado = self._repo_expedientes.crear(expediente)
 

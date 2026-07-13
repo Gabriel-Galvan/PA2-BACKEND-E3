@@ -27,7 +27,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
         "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
         "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
         "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
-        "creado_en, actualizado_en"
+        "celulas_detectadas, creado_en, actualizado_en"
     )
 
     def crear(self, expediente: Expediente) -> Expediente:
@@ -39,8 +39,8 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                     historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                     confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
-                    imagen_datos, creado_en, actualizado_en
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    imagen_datos, celulas_detectadas, creado_en, actualizado_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     expediente.medico_id,
@@ -57,6 +57,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     expediente.nombre_archivo_imagen,
                     expediente.imagen_mime,
                     expediente.imagen_datos,
+                    json.dumps(expediente.celulas_detectadas) if expediente.celulas_detectadas else None,
                     ahora,
                     ahora,
                 ),
@@ -150,4 +151,9 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
             imagen_datos=fila["imagen_datos"] if incluir_imagen and "imagen_datos" in columnas else None,
             creado_en=datetime.fromisoformat(fila["creado_en"]) if fila["creado_en"] else None,
             actualizado_en=datetime.fromisoformat(fila["actualizado_en"]) if fila["actualizado_en"] else None,
+            celulas_detectadas=(
+                json.loads(fila["celulas_detectadas"])
+                if "celulas_detectadas" in columnas and fila["celulas_detectadas"]
+                else None
+            ),
         )

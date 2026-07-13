@@ -33,6 +33,7 @@ from application.use_cases.gestionar_usuarios import (
 from config import Config
 from infrastructure.email.smtp_email_service import SMTPEmailService
 from infrastructure.ml.clasificador_mobilenet import ClasificadorMobileNetV2
+from infrastructure.ml.detector_yolo import DetectorYOLOCelulas
 from infrastructure.persistence.postgres_expediente_repository import RepositorioExpedientesPostgres
 from infrastructure.persistence.postgres_usuario_repository import RepositorioUsuariosPostgres
 from infrastructure.persistence.sqlite_expediente_repository import RepositorioExpedientesSQLite
@@ -74,6 +75,16 @@ def crear_app(config: type[Config] = Config) -> Flask:
         repo_expedientes = RepositorioExpedientesSQLite(config.RUTA_BASE_DE_DATOS)
     auth_service = JWTAuthService(config.SECRET_KEY, config.HORAS_EXPIRACION_TOKEN)
     clasificador_ia = ClasificadorMobileNetV2(config.RUTA_MODELO_IA)
+    # El detector reutiliza el clasificador de arriba por composicion:
+    # localiza cada celula en la foto de campo completo, y cada recorte
+    # se lo pasa al mismo `clasificador_ia` para clasificarlo.
+    detector_celulas = DetectorYOLOCelulas(
+        config.RUTA_MODELO_DETECTOR,
+        clasificador_ia,
+        tamano_entrada=config.DETECTOR_IMGSZ,
+        umbral_confianza=config.DETECTOR_UMBRAL_CONFIANZA,
+        umbral_iou=config.DETECTOR_UMBRAL_IOU,
+    )
     servicio_correo = SMTPEmailService(
         config.SMTP_HOST, config.SMTP_PORT, config.SMTP_USER, config.SMTP_PASSWORD, config.SMTP_FROM_NAME
     )
@@ -87,7 +98,7 @@ def crear_app(config: type[Config] = Config) -> Flask:
     caso_analizar_imagen = AnalizarImagenCasoDeUso(clasificador_ia)
     caso_actualizar_correo = ActualizarCorreoUsuarioCasoDeUso(repo_usuarios)
     caso_crear_expediente = CrearExpedienteCasoDeUso(
-        repo_expedientes, repo_usuarios, clasificador_ia, servicio_correo
+        repo_expedientes, repo_usuarios, detector_celulas, servicio_correo
     )
     caso_listar_expedientes = ListarExpedientesCasoDeUso(repo_expedientes)
     caso_obtener_expediente = ObtenerExpedienteCasoDeUso(repo_expedientes)

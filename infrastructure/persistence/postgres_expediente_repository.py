@@ -18,7 +18,7 @@ _COLUMNAS_SIN_IMAGEN = (
     "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
     "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
     "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
-    "creado_en, actualizado_en"
+    "celulas_detectadas, creado_en, actualizado_en"
 )
 
 
@@ -38,8 +38,8 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                         historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                         confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
-                        imagen_datos, creado_en, actualizado_en
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        imagen_datos, celulas_detectadas, creado_en, actualizado_en
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                     RETURNING id
                     """,
                     (
@@ -57,6 +57,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         expediente.nombre_archivo_imagen,
                         expediente.imagen_mime,
                         psycopg2.Binary(expediente.imagen_datos) if expediente.imagen_datos else None,
+                        json.dumps(expediente.celulas_detectadas) if expediente.celulas_detectadas else None,
                     ),
                 )
                 nuevo_id = cursor.fetchone()[0]
@@ -142,6 +143,9 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
         probabilidades = fila.get("probabilidades_ia")
         if isinstance(probabilidades, str):
             probabilidades = json.loads(probabilidades)
+        celulas_detectadas = fila.get("celulas_detectadas")
+        if isinstance(celulas_detectadas, str):
+            celulas_detectadas = json.loads(celulas_detectadas)
         return Expediente(
             id=fila["id"],
             medico_id=fila["medico_id"],
@@ -160,4 +164,5 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
             imagen_datos=imagen_datos,
             creado_en=fila["creado_en"],
             actualizado_en=fila["actualizado_en"],
+            celulas_detectadas=celulas_detectadas,
         )
