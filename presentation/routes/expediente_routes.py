@@ -71,6 +71,7 @@ def crear_blueprint_expedientes(
                 historial_ginecologico=datos.get("historial_ginecologico", ""),
                 sintomas=datos.get("sintomas", ""),
                 observaciones=datos.get("observaciones", ""),
+                correo_paciente=datos.get("correo_paciente") or None,
             )
         except (ImagenInvalidaError, DatosPacienteInvalidosError) as error:
             return jsonify({"error": str(error)}), 400
@@ -113,6 +114,7 @@ def crear_blueprint_expedientes(
                 historial_ginecologico=datos.get("historial_ginecologico", ""),
                 sintomas=datos.get("sintomas", ""),
                 observaciones=datos.get("observaciones", ""),
+                correo_paciente=datos.get("correo_paciente") or None,
             )
         except ExpedienteNoEncontradoError as error:
             return jsonify({"error": str(error)}), 404

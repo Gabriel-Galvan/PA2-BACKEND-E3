@@ -16,12 +16,21 @@ from flask_cors import CORS
 
 from application.use_cases.analizar_imagen import AnalizarImagenCasoDeUso
 from application.use_cases.autenticar_usuario import AutenticarUsuarioCasoDeUso
+from application.use_cases.gestionar_codigos import (
+    GenerarCodigoInvitacionCasoDeUso,
+    RegistrarUsuarioConCodigoCasoDeUso,
+)
 from application.use_cases.gestionar_expedientes import (
     ActualizarExpedienteCasoDeUso,
     CrearExpedienteCasoDeUso,
     EliminarExpedienteCasoDeUso,
     ListarExpedientesCasoDeUso,
     ObtenerExpedienteCasoDeUso,
+)
+from application.use_cases.gestionar_notificaciones import (
+    ListarNotificacionesCasoDeUso,
+    MarcarNotificacionLeidaCasoDeUso,
+    MarcarTodasNotificacionesLeidasCasoDeUso,
 )
 from application.use_cases.gestionar_perfil import (
     ActualizarAvatarUsuarioCasoDeUso,
@@ -38,9 +47,14 @@ from config import Config
 from infrastructure.email.smtp_email_service import SMTPEmailService
 from infrastructure.ml.clasificador_mobilenet import ClasificadorMobileNetV2
 from infrastructure.ml.detector_yolo import DetectorYOLOCelulas
+from infrastructure.pdf.generador_pdf_paciente import GeneradorPdfPacienteReportlab
+from infrastructure.persistence.postgres_codigo_repository import RepositorioCodigosInvitacionPostgres
 from infrastructure.persistence.postgres_expediente_repository import RepositorioExpedientesPostgres
+from infrastructure.persistence.postgres_notificacion_repository import RepositorioNotificacionesPostgres
 from infrastructure.persistence.postgres_usuario_repository import RepositorioUsuariosPostgres
+from infrastructure.persistence.sqlite_codigo_repository import RepositorioCodigosInvitacionSQLite
 from infrastructure.persistence.sqlite_expediente_repository import RepositorioExpedientesSQLite
+from infrastructure.persistence.sqlite_notificacion_repository import RepositorioNotificacionesSQLite
 from infrastructure.persistence.sqlite_usuario_repository import RepositorioUsuariosSQLite
 from infrastructure.security.auth_service import JWTAuthService
 from presentation.middlewares.auth_middleware import (
@@ -52,6 +66,7 @@ from presentation.routes.analysis_routes import crear_blueprint_analisis
 from presentation.routes.auth_routes import crear_blueprint_auth
 from presentation.routes.expediente_routes import crear_blueprint_expedientes
 from presentation.routes.health_routes import blueprint_salud
+from presentation.routes.notificaciones_routes import crear_blueprint_notificaciones
 from presentation.routes.perfil_routes import crear_blueprint_perfil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -74,9 +89,13 @@ def crear_app(config: type[Config] = Config) -> Flask:
     if config.DATABASE_URL:
         repo_usuarios = RepositorioUsuariosPostgres(config.DATABASE_URL)
         repo_expedientes = RepositorioExpedientesPostgres(config.DATABASE_URL)
+        repo_codigos = RepositorioCodigosInvitacionPostgres(config.DATABASE_URL)
+        repo_notificaciones = RepositorioNotificacionesPostgres(config.DATABASE_URL)
     else:
         repo_usuarios = RepositorioUsuariosSQLite(config.RUTA_BASE_DE_DATOS)
         repo_expedientes = RepositorioExpedientesSQLite(config.RUTA_BASE_DE_DATOS)
+        repo_codigos = RepositorioCodigosInvitacionSQLite(config.RUTA_BASE_DE_DATOS)
+        repo_notificaciones = RepositorioNotificacionesSQLite(config.RUTA_BASE_DE_DATOS)
     auth_service = JWTAuthService(config.SECRET_KEY, config.HORAS_EXPIRACION_TOKEN)
     clasificador_ia = ClasificadorMobileNetV2(config.RUTA_MODELO_IA)
     # El detector reutiliza el clasificador de arriba por composicion:
@@ -92,6 +111,7 @@ def crear_app(config: type[Config] = Config) -> Flask:
     servicio_correo = SMTPEmailService(
         config.SMTP_HOST, config.SMTP_PORT, config.SMTP_USER, config.SMTP_PASSWORD, config.SMTP_FROM_NAME
     )
+    generador_pdf_paciente = GeneradorPdfPacienteReportlab(config.SMTP_FROM_NAME)
 
     # ----- CASOS DE USO -----
     caso_autenticar = AutenticarUsuarioCasoDeUso(repo_usuarios, auth_service)
@@ -104,25 +124,31 @@ def crear_app(config: type[Config] = Config) -> Flask:
     caso_actualizar_avatar = ActualizarAvatarUsuarioCasoDeUso(repo_usuarios)
     caso_actualizar_nombre_usuario = ActualizarNombreUsuarioCasoDeUso(repo_usuarios)
     caso_crear_expediente = CrearExpedienteCasoDeUso(
-        repo_expedientes, repo_usuarios, detector_celulas, servicio_correo
+        repo_expedientes, repo_usuarios, repo_notificaciones, detector_celulas, servicio_correo, generador_pdf_paciente
     )
     caso_listar_expedientes = ListarExpedientesCasoDeUso(repo_expedientes)
     caso_obtener_expediente = ObtenerExpedienteCasoDeUso(repo_expedientes)
     caso_actualizar_expediente = ActualizarExpedienteCasoDeUso(repo_expedientes)
     caso_eliminar_expediente = EliminarExpedienteCasoDeUso(repo_expedientes)
+    caso_generar_codigo = GenerarCodigoInvitacionCasoDeUso(repo_codigos, repo_notificaciones)
+    caso_registrar_usuario = RegistrarUsuarioConCodigoCasoDeUso(repo_usuarios, repo_codigos, auth_service)
+    caso_listar_notificaciones = ListarNotificacionesCasoDeUso(repo_notificaciones)
+    caso_marcar_notificacion_leida = MarcarNotificacionLeidaCasoDeUso(repo_notificaciones)
+    caso_marcar_todas_notificaciones_leidas = MarcarTodasNotificacionesLeidasCasoDeUso(repo_notificaciones)
 
     # ----- MIDDLEWARES -----
     token_requerido = crear_decorador_token_requerido(auth_service)
     rol_requerido = crear_decorador_rol_requerido()
 
     # ----- RUTAS (solo API JSON, sin vistas HTML) -----
-    app.register_blueprint(crear_blueprint_auth(caso_autenticar))
+    app.register_blueprint(crear_blueprint_auth(caso_autenticar, caso_registrar_usuario))
     app.register_blueprint(
         crear_blueprint_admin(
             caso_listar_usuarios,
             caso_crear_usuario,
             caso_eliminar_usuario,
             caso_cambiar_estado_usuario,
+            caso_generar_codigo,
             token_requerido,
             rol_requerido,
         )
@@ -143,6 +169,14 @@ def crear_app(config: type[Config] = Config) -> Flask:
             caso_actualizar_correo,
             caso_actualizar_avatar,
             caso_actualizar_nombre_usuario,
+            token_requerido,
+        )
+    )
+    app.register_blueprint(
+        crear_blueprint_notificaciones(
+            caso_listar_notificaciones,
+            caso_marcar_notificacion_leida,
+            caso_marcar_todas_notificaciones_leidas,
             token_requerido,
         )
     )

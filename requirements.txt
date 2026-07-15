@@ -7,4 +7,5 @@ numpy==1.26.4
 ai-edge-litert==2.1.6
 gunicorn
 psycopg2-binary==2.9.10
+reportlab==4.2.5
 

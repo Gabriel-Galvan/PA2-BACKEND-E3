@@ -17,7 +17,7 @@ tocar ni una linea de los casos de uso.
 
 from abc import ABC, abstractmethod
 
-from domain.entities import Expediente, ResultadoClasificacion, RolUsuario, Usuario
+from domain.entities import CodigoInvitacion, Expediente, Notificacion, ResultadoClasificacion, RolUsuario, Usuario
 
 
 class RepositorioUsuarios(ABC):
@@ -205,6 +205,7 @@ class RepositorioExpedientes(ABC):
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
+        correo_paciente: str | None = None,
     ) -> bool:
         """Actualiza SOLO los campos clinicos que ingresa el medico (nunca el resultado de IA)."""
         raise NotImplementedError
@@ -212,6 +213,77 @@ class RepositorioExpedientes(ABC):
     @abstractmethod
     def eliminar(self, expediente_id: int) -> bool:
         """Elimina un expediente por id."""
+        raise NotImplementedError
+
+
+class GeneradorPdfPaciente(ABC):
+    """
+    Puerto (contrato) para generar el PDF generico que se adjunta al
+    correo del PACIENTE (aviso de resultado disponible, sin datos
+    clinicos sensibles). Implementacion concreta (reportlab) en
+    infrastructure/pdf/generador_pdf_paciente.py
+    """
+
+    @abstractmethod
+    def generar(self, expediente: Expediente) -> bytes:
+        raise NotImplementedError
+
+
+class RepositorioCodigosInvitacion(ABC):
+    """
+    Puerto (contrato) para los codigos de invitacion de un solo uso que
+    permiten el auto-registro de nuevos medicos. Implementacion
+    concreta en infrastructure/persistence/*_codigo_repository.py
+    """
+
+    @abstractmethod
+    def crear(self, codigo: str, creado_por: int) -> CodigoInvitacion:
+        raise NotImplementedError
+
+    @abstractmethod
+    def obtener_por_codigo(self, codigo: str) -> CodigoInvitacion | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def marcar_usado(self, codigo_id: int, usuario_id: int) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def listar_todos(self) -> list[CodigoInvitacion]:
+        """Historial de codigos generados (vista administrativa)."""
+        raise NotImplementedError
+
+
+class RepositorioNotificaciones(ABC):
+    """
+    Puerto (contrato) para las notificaciones in-app (la 'campanita').
+    Implementacion concreta en
+    infrastructure/persistence/*_notificacion_repository.py
+    """
+
+    @abstractmethod
+    def crear(self, notificacion: Notificacion) -> Notificacion:
+        raise NotImplementedError
+
+    @abstractmethod
+    def crear_para_admins(self, tipo: str, titulo: str, mensaje: str, referencia_id: int | None = None) -> None:
+        """Crea la misma notificacion para TODOS los usuarios con rol admin."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def listar_por_usuario(self, usuario_id: int, limite: int = 30) -> list[Notificacion]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def contar_no_leidas(self, usuario_id: int) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def marcar_leida(self, notificacion_id: int, usuario_id: int) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def marcar_todas_leidas(self, usuario_id: int) -> bool:
         raise NotImplementedError
 
 
@@ -240,5 +312,21 @@ class ServicioCorreo(ABC):
         se envio realmente por SMTP, False si quedo en modo simulado
         o si el envio fallo (nunca lanza excepcion: un correo fallido
         no debe tumbar la creacion del expediente).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def enviar_notificacion_paciente(
+        self,
+        destinatario: str,
+        expediente: Expediente,
+        pdf_adjunto: bytes | None = None,
+    ) -> bool:
+        """
+        Envia al paciente un correo generico (sin detalles clinicos
+        sensibles en el cuerpo del mensaje) avisando que su resultado
+        ya esta disponible, opcionalmente con un PDF adjunto. Mismo
+        criterio best-effort que `enviar_notificacion_analisis`: nunca
+        lanza excepcion.
         """
         raise NotImplementedError

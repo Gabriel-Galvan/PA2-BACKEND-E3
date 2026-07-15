@@ -75,3 +75,40 @@ ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS sexo TEXT;
 -- de apoyo. diagnostico_ia/confianza_ia siguen siendo el hallazgo principal
 -- (el mas severo entre todas las celulas detectadas).
 ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS celulas_detectadas TEXT;
+
+-- Migracion aditiva: correo del paciente, para avisarle por email
+-- (mensaje generico, sin datos clinicos) cuando su resultado esta listo.
+ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS correo_paciente TEXT;
+
+-- ============================================================
+-- Codigos de invitacion (auto-registro de nuevos medicos): un
+-- administrador genera un codigo de un solo uso y se lo entrega al
+-- nuevo medico, que lo usa en POST /api/auth/registro.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS codigos_invitacion (
+    id              SERIAL PRIMARY KEY,
+    codigo          TEXT NOT NULL UNIQUE,
+    creado_por      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    usado           BOOLEAN NOT NULL DEFAULT FALSE,
+    usado_por       INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en       TIMESTAMP NOT NULL DEFAULT NOW(),
+    usado_en        TIMESTAMP
+);
+
+-- ============================================================
+-- Notificaciones in-app ("la campanita"): avisos de expediente listo
+-- para el medico dueno, y avisos de codigo de invitacion generado
+-- para los administradores.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id              SERIAL PRIMARY KEY,
+    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo            TEXT NOT NULL,
+    titulo          TEXT NOT NULL,
+    mensaje         TEXT NOT NULL,
+    leida           BOOLEAN NOT NULL DEFAULT FALSE,
+    referencia_id   INTEGER,
+    creado_en       TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_id ON notificaciones(usuario_id);

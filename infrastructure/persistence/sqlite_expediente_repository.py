@@ -27,7 +27,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
         "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
         "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
         "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
-        "celulas_detectadas, creado_en, actualizado_en"
+        "celulas_detectadas, correo_paciente, creado_en, actualizado_en"
     )
 
     def crear(self, expediente: Expediente) -> Expediente:
@@ -39,8 +39,8 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                     historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                     confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
-                    imagen_datos, celulas_detectadas, creado_en, actualizado_en
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    imagen_datos, celulas_detectadas, correo_paciente, creado_en, actualizado_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     expediente.medico_id,
@@ -58,6 +58,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     expediente.imagen_mime,
                     expediente.imagen_datos,
                     json.dumps(expediente.celulas_detectadas) if expediente.celulas_detectadas else None,
+                    expediente.correo_paciente,
                     ahora,
                     ahora,
                 ),
@@ -99,6 +100,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
+        correo_paciente: str | None = None,
     ) -> bool:
         with self._conectar() as conexion:
             cursor = conexion.execute(
@@ -106,7 +108,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                 UPDATE expedientes SET
                     nombre_paciente = ?, numero_documento = ?, fecha_nacimiento = ?, sexo = ?,
                     historial_ginecologico = ?, sintomas = ?, observaciones = ?,
-                    actualizado_en = ?
+                    correo_paciente = ?, actualizado_en = ?
                 WHERE id = ?
                 """,
                 (
@@ -117,6 +119,7 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                     historial_ginecologico,
                     sintomas,
                     observaciones,
+                    correo_paciente,
                     datetime.utcnow().isoformat(),
                     expediente_id,
                 ),
@@ -156,4 +159,5 @@ class RepositorioExpedientesSQLite(RepositorioExpedientes):
                 if "celulas_detectadas" in columnas and fila["celulas_detectadas"]
                 else None
             ),
+            correo_paciente=fila["correo_paciente"] if "correo_paciente" in columnas else None,
         )

@@ -188,6 +188,7 @@ class Expediente:
     imagen_datos: bytes | None = None  # se omite al listar, solo viaja en el detalle
     creado_en: datetime | None = None
     actualizado_en: datetime | None = None
+    correo_paciente: str | None = None  # para avisarle por email cuando su resultado este listo
     # Lista de TODAS las celulas que el detector encontro en la imagen de
     # campo completo (no solo la que se reporta como diagnostico_ia),
     # cada una como {"bbox": [x1,y1,x2,y2], "clase": str, "confianza": float}.
@@ -227,6 +228,7 @@ class Expediente:
             "historial_ginecologico": self.historial_ginecologico,
             "sintomas": self.sintomas,
             "observaciones": self.observaciones,
+            "correo_paciente": self.correo_paciente,
             "diagnostico_ia": self.diagnostico_ia,
             "confianza_ia": round(self.confianza_ia, 2),
             "probabilidades_ia": {k: round(v, 2) for k, v in self.probabilidades_ia.items()},
@@ -244,3 +246,63 @@ class Expediente:
                 f"data:{self.imagen_mime};base64," + base64.b64encode(self.imagen_datos).decode("ascii")
             )
         return datos
+
+
+@dataclass
+class CodigoInvitacion:
+    """
+    Codigo de un solo uso que un administrador genera para permitir que
+    un nuevo medico se auto-registre (POST /api/auth/registro). Sin un
+    codigo valido y sin usar, el endpoint de registro publico rechaza
+    la creacion de la cuenta: asi se mantiene el control de accesos
+    (PB-14) sin que cualquiera pueda crearse una cuenta libremente.
+    """
+    id: int | None
+    codigo: str
+    creado_por: int  # id del administrador que lo genero
+    usado: bool = False
+    usado_por: int | None = None  # id del usuario que lo canjeo, una vez usado
+    creado_en: datetime | None = None
+    usado_en: datetime | None = None
+
+    def a_diccionario(self) -> dict:
+        return {
+            "id": self.id,
+            "codigo": self.codigo,
+            "usado": self.usado,
+            "usado_por": self.usado_por,
+            "creado_en": self.creado_en.isoformat() if self.creado_en else None,
+            "usado_en": self.usado_en.isoformat() if self.usado_en else None,
+        }
+
+
+@dataclass
+class Notificacion:
+    """
+    Notificacion in-app (la 'campanita' de la interfaz). Dos usos
+    concretos en este sistema:
+      - tipo 'expediente_listo': se crea para el medico dueno de un
+        expediente apenas el analisis de IA termina.
+      - tipo 'codigo_invitacion': se crea para el/los administradores
+        cada vez que se genera un codigo de invitacion, para que lo
+        tengan a mano y se lo puedan entregar al nuevo medico.
+    """
+    id: int | None
+    usuario_id: int
+    tipo: str
+    titulo: str
+    mensaje: str
+    leida: bool = False
+    referencia_id: int | None = None  # id del expediente o del codigo relacionado, segun el tipo
+    creado_en: datetime | None = None
+
+    def a_diccionario(self) -> dict:
+        return {
+            "id": self.id,
+            "tipo": self.tipo,
+            "titulo": self.titulo,
+            "mensaje": self.mensaje,
+            "leida": self.leida,
+            "referencia_id": self.referencia_id,
+            "creado_en": self.creado_en.isoformat() if self.creado_en else None,
+        }

@@ -14,10 +14,21 @@ NUNCA contiene logica de negocio: eso vive en application/use_cases.
 from flask import Blueprint, jsonify, request
 
 from application.use_cases.autenticar_usuario import AutenticarUsuarioCasoDeUso
-from domain.exceptions import CredencialesInvalidasError, UsuarioInactivoError
+from application.use_cases.gestionar_codigos import RegistrarUsuarioConCodigoCasoDeUso
+from domain.exceptions import (
+    CodigoInvitacionInvalidoError,
+    CorreoInvalidoError,
+    CredencialesInvalidasError,
+    NombreUsuarioInvalidoError,
+    UsuarioInactivoError,
+    UsuarioYaExisteError,
+)
 
 
-def crear_blueprint_auth(caso_de_uso_autenticar: AutenticarUsuarioCasoDeUso) -> Blueprint:
+def crear_blueprint_auth(
+    caso_de_uso_autenticar: AutenticarUsuarioCasoDeUso,
+    caso_de_uso_registrar: RegistrarUsuarioConCodigoCasoDeUso,
+) -> Blueprint:
     blueprint = Blueprint("auth", __name__, url_prefix="/api/auth")
 
     @blueprint.route("/login", methods=["POST"])
@@ -46,5 +57,37 @@ def crear_blueprint_auth(caso_de_uso_autenticar: AutenticarUsuarioCasoDeUso) -> 
                 "avatar_base64": usuario.avatar_base64,
             },
         }), 200
+
+    @blueprint.route("/registro", methods=["POST"])
+    def registro():
+        """
+        Auto-registro publico de un nuevo medico, protegido por un
+        codigo de invitacion de un solo uso (ver Configuracion > Gestion
+        de Usuarios, donde un admin genera el codigo). El usuario
+        siempre queda con rol 'medico'.
+        """
+        datos = request.get_json(silent=True) or {}
+        nombre_usuario = datos.get("nombre_usuario") or ""
+        password = datos.get("contrasena") or ""
+        correo = datos.get("correo") or ""
+        codigo = datos.get("codigo") or ""
+
+        try:
+            usuario = caso_de_uso_registrar.ejecutar(nombre_usuario, password, correo, codigo)
+        except (NombreUsuarioInvalidoError, CorreoInvalidoError) as error:
+            return jsonify({"error": str(error)}), 400
+        except CodigoInvitacionInvalidoError as error:
+            return jsonify({"error": str(error)}), 400
+        except UsuarioYaExisteError as error:
+            return jsonify({"error": str(error)}), 409
+
+        return jsonify({
+            "mensaje": "Cuenta creada correctamente. Ya puedes iniciar sesion.",
+            "usuario": {
+                "id": usuario.id,
+                "nombre_usuario": usuario.nombre_usuario,
+                "rol": usuario.rol.value,
+            },
+        }), 201
 
     return blueprint

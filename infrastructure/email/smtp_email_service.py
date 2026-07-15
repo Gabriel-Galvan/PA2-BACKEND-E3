@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -93,6 +94,84 @@ class SMTPEmailService(ServicioCorreo):
         except Exception:  # noqa: BLE001 - un fallo de correo nunca debe tumbar la peticion HTTP
             logger.exception("No se pudo enviar el correo de notificacion a %s", destinatario)
             return False
+
+    def enviar_notificacion_paciente(
+        self,
+        destinatario: str,
+        expediente: Expediente,
+        pdf_adjunto: bytes | None = None,
+    ) -> bool:
+        asunto = f"Su resultado ya esta disponible - {self._nombre_remitente}"
+        cuerpo_texto, cuerpo_html = self._construir_cuerpo_paciente(expediente)
+
+        if self._modo_simulado:
+            logger.info(
+                "[MODO SIMULADO - SMTP no configurado] Correo al PACIENTE no enviado realmente.\n"
+                "Para: %s\nAsunto: %s\nAdjunto PDF: %s\n%s",
+                destinatario,
+                asunto,
+                "si" if pdf_adjunto else "no",
+                cuerpo_texto,
+            )
+            return False
+
+        mensaje = MIMEMultipart("mixed")
+        mensaje["Subject"] = asunto
+        mensaje["From"] = f"{self._nombre_remitente} <{self._usuario_smtp}>"
+        mensaje["To"] = destinatario
+
+        cuerpo = MIMEMultipart("alternative")
+        cuerpo.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
+        cuerpo.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+        mensaje.attach(cuerpo)
+
+        if pdf_adjunto:
+            adjunto = MIMEApplication(pdf_adjunto, _subtype="pdf")
+            nombre_archivo = f"{expediente.codigo_expediente}-aviso.pdf"
+            adjunto.add_header("Content-Disposition", "attachment", filename=nombre_archivo)
+            mensaje.attach(adjunto)
+
+        try:
+            with smtplib.SMTP_SSL(self._host, self._puerto, timeout=15) as servidor:
+                servidor.login(self._usuario_smtp, self._password_smtp)
+                servidor.sendmail(self._usuario_smtp, [destinatario], mensaje.as_string())
+            logger.info("Correo de aviso al paciente enviado a %s (%s)", destinatario, expediente.codigo_expediente)
+            return True
+        except Exception:  # noqa: BLE001 - un fallo de correo nunca debe tumbar la peticion HTTP
+            logger.exception("No se pudo enviar el correo de aviso al paciente %s", destinatario)
+            return False
+
+    @staticmethod
+    def _construir_cuerpo_paciente(expediente: Expediente) -> tuple[str, str]:
+        texto = (
+            f"Estimado(a) {expediente.nombre_paciente},\n\n"
+            f"Le informamos que el analisis de laboratorio correspondiente a su muestra "
+            f"(codigo de referencia {expediente.codigo_expediente}) ya se encuentra disponible.\n\n"
+            "Por favor comuniquese con su medico tratante o acerquese a nuestras "
+            "instalaciones para recibir la explicacion detallada de sus resultados.\n\n"
+            "Este mensaje es una notificacion automatica y no reemplaza la consulta medica: "
+            "los resultados clinicos completos solo se entregan de forma presencial o a "
+            "traves de su profesional de salud. Encontrara mas detalles en el PDF adjunto.\n\n"
+            "-- Sistema de Diagnostico Cervical"
+        )
+        html = f"""
+        <div style="font-family: Arial, sans-serif; color: #3d2e1e; max-width: 480px;">
+          <h2 style="color:#a07850;">Su resultado ya esta disponible</h2>
+          <p>Estimado(a) <strong>{expediente.nombre_paciente}</strong>,</p>
+          <p>Le informamos que el analisis de laboratorio correspondiente a su muestra
+             (codigo de referencia <strong>{expediente.codigo_expediente}</strong>) ya se
+             encuentra disponible.</p>
+          <p>Por favor comuniquese con su medico tratante o acerquese a nuestras
+             instalaciones para recibir la explicacion detallada de sus resultados.</p>
+          <p style="font-size:12px; color:#8a7560;">Este mensaje es una notificacion
+             automatica y no reemplaza la consulta medica: los resultados clinicos
+             completos solo se entregan de forma presencial o a traves de su
+             profesional de salud. Encontrara mas detalles en el PDF adjunto.</p>
+          <hr style="border:none; border-top:1px solid #e8dece; margin:16px 0;">
+          <p style="font-size:11px; color:#a09080;">Sistema de Diagnostico Cervical</p>
+        </div>
+        """
+        return texto, html
 
     @staticmethod
     def _construir_cuerpo(nombre_medico: str, expediente: Expediente) -> tuple[str, str]:

@@ -68,8 +68,38 @@ CREATE TABLE IF NOT EXISTS expedientes (
     imagen_mime             TEXT,
     imagen_datos            BLOB,
     celulas_detectadas      TEXT,
+    correo_paciente         TEXT,
     creado_en               TEXT NOT NULL,
     actualizado_en          TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_expedientes_medico_id ON expedientes(medico_id);
+
+-- ============================================================
+-- Codigos de invitacion (auto-registro de nuevos medicos).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS codigos_invitacion (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo          TEXT NOT NULL UNIQUE,
+    creado_por      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    usado           INTEGER NOT NULL DEFAULT 0 CHECK (usado IN (0, 1)),
+    usado_por       INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en       TEXT NOT NULL,
+    usado_en        TEXT
+);
+
+-- ============================================================
+-- Notificaciones in-app.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo            TEXT NOT NULL,
+    titulo          TEXT NOT NULL,
+    mensaje         TEXT NOT NULL,
+    leida           INTEGER NOT NULL DEFAULT 0 CHECK (leida IN (0, 1)),
+    referencia_id   INTEGER,
+    creado_en       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_id ON notificaciones(usuario_id);

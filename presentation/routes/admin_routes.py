@@ -9,8 +9,9 @@ Todas las rutas de este blueprint requieren estar autenticado
 (@token_requerido) y tener el rol "admin" (@rol_requerido("admin")).
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
+from application.use_cases.gestionar_codigos import GenerarCodigoInvitacionCasoDeUso
 from application.use_cases.gestionar_usuarios import (
     CambiarEstadoUsuarioCasoDeUso,
     CrearUsuarioCasoDeUso,
@@ -26,6 +27,7 @@ def crear_blueprint_admin(
     caso_crear: CrearUsuarioCasoDeUso,
     caso_eliminar: EliminarUsuarioCasoDeUso,
     caso_cambiar_estado: CambiarEstadoUsuarioCasoDeUso,
+    caso_generar_codigo: GenerarCodigoInvitacionCasoDeUso,
     token_requerido,
     rol_requerido,
 ) -> Blueprint:
@@ -98,5 +100,13 @@ def crear_blueprint_admin(
         if not actualizado:
             return jsonify({"error": "Usuario no encontrado"}), 404
         return jsonify({"mensaje": "Estado actualizado correctamente", "activo": activo}), 200
+
+    @blueprint.route("/codigos-invitacion", methods=["POST"])
+    @token_requerido
+    @rol_requerido("admin")
+    def generar_codigo_invitacion():
+        admin_id = int(g.usuario_actual["sub"])
+        codigo_creado = caso_generar_codigo.ejecutar(admin_id)
+        return jsonify(codigo_creado.a_diccionario()), 201
 
     return blueprint

@@ -18,7 +18,7 @@ _COLUMNAS_SIN_IMAGEN = (
     "id, medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo, "
     "historial_ginecologico, sintomas, observaciones, diagnostico_ia, "
     "confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime, "
-    "celulas_detectadas, creado_en, actualizado_en"
+    "celulas_detectadas, correo_paciente, creado_en, actualizado_en"
 )
 
 
@@ -38,8 +38,8 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         medico_id, nombre_paciente, numero_documento, fecha_nacimiento, sexo,
                         historial_ginecologico, sintomas, observaciones, diagnostico_ia,
                         confianza_ia, probabilidades_ia, nombre_archivo_imagen, imagen_mime,
-                        imagen_datos, celulas_detectadas, creado_en, actualizado_en
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        imagen_datos, celulas_detectadas, correo_paciente, creado_en, actualizado_en
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                     RETURNING id
                     """,
                     (
@@ -58,6 +58,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         expediente.imagen_mime,
                         psycopg2.Binary(expediente.imagen_datos) if expediente.imagen_datos else None,
                         json.dumps(expediente.celulas_detectadas) if expediente.celulas_detectadas else None,
+                        expediente.correo_paciente,
                     ),
                 )
                 nuevo_id = cursor.fetchone()[0]
@@ -101,6 +102,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
+        correo_paciente: str | None = None,
     ) -> bool:
         with self._conectar() as conexion:
             with conexion.cursor() as cursor:
@@ -109,7 +111,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                     UPDATE expedientes SET
                         nombre_paciente = %s, numero_documento = %s, fecha_nacimiento = %s, sexo = %s,
                         historial_ginecologico = %s, sintomas = %s, observaciones = %s,
-                        actualizado_en = NOW()
+                        correo_paciente = %s, actualizado_en = NOW()
                     WHERE id = %s
                     """,
                     (
@@ -120,6 +122,7 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
                         historial_ginecologico,
                         sintomas,
                         observaciones,
+                        correo_paciente,
                         expediente_id,
                     ),
                 )
@@ -165,4 +168,5 @@ class RepositorioExpedientesPostgres(RepositorioExpedientes):
             creado_en=fila["creado_en"],
             actualizado_en=fila["actualizado_en"],
             celulas_detectadas=celulas_detectadas,
+            correo_paciente=fila.get("correo_paciente"),
         )

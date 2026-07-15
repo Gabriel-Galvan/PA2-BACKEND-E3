@@ -54,3 +54,7 @@ class CorreoInvalidoError(ErrorDominio):
 
 class NombreUsuarioInvalidoError(ErrorDominio):
     """Se lanza cuando el nuevo nombre de usuario no cumple el formato esperado."""
+
+
+class CodigoInvitacionInvalidoError(ErrorDominio):
+    """Se lanza cuando el codigo de invitacion no existe, ya fue usado, o el formato es invalido."""

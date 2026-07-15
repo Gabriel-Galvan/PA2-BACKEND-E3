@@ -45,6 +45,10 @@ def inicializar_base_de_datos() -> None:
             conexion.execute("ALTER TABLE usuarios ADD COLUMN avatar_base64 TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            conexion.execute("ALTER TABLE expedientes ADD COLUMN correo_paciente TEXT")
+        except sqlite3.OperationalError:
+            pass
 
         conexion.commit()
         print(f"Base de datos creada/actualizada correctamente en: {RUTA_DB}")

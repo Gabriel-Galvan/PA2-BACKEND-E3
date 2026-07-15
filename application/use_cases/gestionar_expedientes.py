@@ -15,7 +15,7 @@ sistema ya le permite gestionar usuarios sin restriccion.
 
 from __future__ import annotations
 
-from domain.entities import Expediente, RolUsuario, seleccionar_hallazgo_principal
+from domain.entities import Expediente, Notificacion, RolUsuario, seleccionar_hallazgo_principal
 from domain.exceptions import (
     AccesoNoAutorizadoError,
     DatosPacienteInvalidosError,
@@ -24,7 +24,9 @@ from domain.exceptions import (
 )
 from domain.repositories import (
     DetectorCelular,
+    GeneradorPdfPaciente,
     RepositorioExpedientes,
+    RepositorioNotificaciones,
     RepositorioUsuarios,
     ServicioCorreo,
 )
@@ -88,21 +90,29 @@ class CrearExpedienteCasoDeUso:
       3. Persiste el expediente completo (datos del paciente + imagen +
          diagnostico principal + lista de TODAS las celulas detectadas
          como informacion de apoyo).
-      4. Intenta notificar por correo al medico dueno del expediente
-         (best-effort: si falla el envio, el expediente igual se crea).
+      4. Crea una notificacion in-app ("campanita") para el medico dueno
+         del expediente, e intenta notificarlo tambien por correo
+         (best-effort: si algo de esto falla, el expediente igual se crea).
+      5. Si se registro un correo del PACIENTE, le envia un aviso generico
+         (sin datos clinicos) con un PDF adjunto avisandole que su
+         resultado ya esta disponible.
     """
 
     def __init__(
         self,
         repo_expedientes: RepositorioExpedientes,
         repo_usuarios: RepositorioUsuarios,
+        repo_notificaciones: RepositorioNotificaciones,
         detector: DetectorCelular,
         servicio_correo: ServicioCorreo,
+        generador_pdf_paciente: GeneradorPdfPaciente,
     ):
         self._repo_expedientes = repo_expedientes
         self._repo_usuarios = repo_usuarios
+        self._repo_notificaciones = repo_notificaciones
         self._detector = detector
         self._servicio_correo = servicio_correo
+        self._generador_pdf_paciente = generador_pdf_paciente
 
     def ejecutar(
         self,
@@ -116,6 +126,7 @@ class CrearExpedienteCasoDeUso:
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
+        correo_paciente: str | None = None,
     ) -> tuple[Expediente, bool]:
         if not nombre_paciente or not nombre_paciente.strip():
             raise DatosPacienteInvalidosError("El nombre del paciente es obligatorio")
@@ -152,8 +163,28 @@ class CrearExpedienteCasoDeUso:
             imagen_mime=_mime_por_extension(nombre_archivo),
             imagen_datos=bytes_imagen,
             celulas_detectadas=celulas_detectadas,
+            correo_paciente=(correo_paciente or "").strip() or None,
         )
         expediente_creado = self._repo_expedientes.crear(expediente)
+
+        # ---- Notificacion in-app + correo al MEDICO ----
+        try:
+            self._repo_notificaciones.crear(
+                Notificacion(
+                    id=None,
+                    usuario_id=medico_id,
+                    tipo="expediente_listo",
+                    titulo="Expediente con resultados listos",
+                    mensaje=(
+                        f"El expediente {expediente_creado.codigo_expediente} de "
+                        f"{expediente_creado.nombre_paciente} ya tiene resultados: "
+                        f"{expediente_creado.diagnostico_ia}."
+                    ),
+                    referencia_id=expediente_creado.id,
+                )
+            )
+        except Exception:  # noqa: BLE001 - una notificacion fallida nunca debe romper la creacion
+            pass
 
         correo_enviado = False
         medico = self._repo_usuarios.obtener_por_id(medico_id)
@@ -164,6 +195,16 @@ class CrearExpedienteCasoDeUso:
                 )
             except Exception:  # noqa: BLE001 - un correo fallido nunca debe romper la creacion
                 correo_enviado = False
+
+        # ---- Aviso generico + PDF al PACIENTE (si dejo su correo) ----
+        if expediente_creado.correo_paciente:
+            try:
+                pdf_adjunto = self._generador_pdf_paciente.generar(expediente_creado)
+                self._servicio_correo.enviar_notificacion_paciente(
+                    expediente_creado.correo_paciente, expediente_creado, pdf_adjunto
+                )
+            except Exception:  # noqa: BLE001 - un correo fallido nunca debe romper la creacion
+                pass
 
         return expediente_creado, correo_enviado
 
@@ -212,6 +253,7 @@ class ActualizarExpedienteCasoDeUso:
         historial_ginecologico: str,
         sintomas: str,
         observaciones: str,
+        correo_paciente: str | None = None,
     ) -> Expediente:
         expediente = self._repo_expedientes.obtener_por_id(expediente_id)
         if expediente is None:
@@ -232,6 +274,7 @@ class ActualizarExpedienteCasoDeUso:
             (historial_ginecologico or "").strip(),
             (sintomas or "").strip(),
             (observaciones or "").strip(),
+            (correo_paciente or "").strip() or None,
         )
         return self._repo_expedientes.obtener_por_id(expediente_id)
 
