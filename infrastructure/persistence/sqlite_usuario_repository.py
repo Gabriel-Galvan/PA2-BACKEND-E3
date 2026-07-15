@@ -33,7 +33,7 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
     def obtener_por_nombre_usuario(self, nombre_usuario: str) -> Usuario | None:
         with self._conectar() as conexion:
             fila = conexion.execute(
-                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                 "FROM usuarios WHERE nombre_usuario = ?",
                 (nombre_usuario,),
             ).fetchone()
@@ -42,7 +42,7 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
     def obtener_por_id(self, usuario_id: int) -> Usuario | None:
         with self._conectar() as conexion:
             fila = conexion.execute(
-                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                 "FROM usuarios WHERE id = ?",
                 (usuario_id,),
             ).fetchone()
@@ -51,7 +51,7 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
     def listar_todos(self) -> list[Usuario]:
         with self._conectar() as conexion:
             filas = conexion.execute(
-                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                 "FROM usuarios ORDER BY id"
             ).fetchall()
         return [self._fila_a_entidad(f) for f in filas]
@@ -104,6 +104,22 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
             conexion.commit()
         return cursor.rowcount > 0
 
+    def actualizar_avatar(self, usuario_id: int, avatar_base64: str | None) -> bool:
+        with self._conectar() as conexion:
+            cursor = conexion.execute(
+                "UPDATE usuarios SET avatar_base64 = ? WHERE id = ?", (avatar_base64, usuario_id)
+            )
+            conexion.commit()
+        return cursor.rowcount > 0
+
+    def actualizar_nombre_usuario(self, usuario_id: int, nombre_usuario: str) -> bool:
+        with self._conectar() as conexion:
+            cursor = conexion.execute(
+                "UPDATE usuarios SET nombre_usuario = ? WHERE id = ?", (nombre_usuario, usuario_id)
+            )
+            conexion.commit()
+        return cursor.rowcount > 0
+
     @staticmethod
     def _fila_a_entidad(fila: sqlite3.Row) -> Usuario:
         return Usuario(
@@ -114,4 +130,5 @@ class RepositorioUsuariosSQLite(RepositorioUsuarios):
             activo=bool(fila["activo"]),
             creado_en=datetime.fromisoformat(fila["creado_en"]) if fila["creado_en"] else None,
             correo=fila["correo"] if "correo" in fila.keys() else None,
+            avatar_base64=fila["avatar_base64"] if "avatar_base64" in fila.keys() else None,
         )

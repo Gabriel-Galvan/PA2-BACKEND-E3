@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     rol             TEXT NOT NULL DEFAULT 'medico' CHECK (rol IN ('admin', 'medico')),
     activo          INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     creado_en       TEXT NOT NULL,
-    correo          TEXT
+    correo          TEXT,
+    avatar_base64   TEXT
 );
 
 -- Usuario administrador de prueba: admin / 1234

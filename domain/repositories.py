@@ -68,6 +68,16 @@ class RepositorioUsuarios(ABC):
         """Actualiza el correo de notificaciones de un usuario (auto-servicio en Configuracion)."""
         raise NotImplementedError
 
+    @abstractmethod
+    def actualizar_avatar(self, usuario_id: int, avatar_base64: str | None) -> bool:
+        """Guarda (o borra, si avatar_base64 es None) la foto de perfil del usuario."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def actualizar_nombre_usuario(self, usuario_id: int, nombre_usuario: str) -> bool:
+        """Cambia el nombre de usuario (auto-servicio en Configuracion)."""
+        raise NotImplementedError
+
 
 class ClasificadorCelular(ABC):
     """

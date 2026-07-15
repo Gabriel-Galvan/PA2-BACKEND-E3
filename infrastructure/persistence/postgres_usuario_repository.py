@@ -31,7 +31,7 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
         with self._conectar() as conexion:
             with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                     "FROM usuarios WHERE nombre_usuario = %s",
                     (nombre_usuario,),
                 )
@@ -42,7 +42,7 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
         with self._conectar() as conexion:
             with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                     "FROM usuarios WHERE id = %s",
                     (usuario_id,),
                 )
@@ -53,7 +53,7 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
         with self._conectar() as conexion:
             with conexion.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(
-                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo "
+                    "SELECT id, nombre_usuario, password_hash, rol, activo, creado_en, correo, avatar_base64 "
                     "FROM usuarios ORDER BY id"
                 )
                 filas = cursor.fetchall()
@@ -114,6 +114,26 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
             conexion.commit()
         return filas_afectadas > 0
 
+    def actualizar_avatar(self, usuario_id: int, avatar_base64: str | None) -> bool:
+        with self._conectar() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE usuarios SET avatar_base64 = %s WHERE id = %s", (avatar_base64, usuario_id)
+                )
+                filas_afectadas = cursor.rowcount
+            conexion.commit()
+        return filas_afectadas > 0
+
+    def actualizar_nombre_usuario(self, usuario_id: int, nombre_usuario: str) -> bool:
+        with self._conectar() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE usuarios SET nombre_usuario = %s WHERE id = %s", (nombre_usuario, usuario_id)
+                )
+                filas_afectadas = cursor.rowcount
+            conexion.commit()
+        return filas_afectadas > 0
+
     @staticmethod
     def _fila_a_entidad(fila) -> Usuario:
         return Usuario(
@@ -124,4 +144,5 @@ class RepositorioUsuariosPostgres(RepositorioUsuarios):
             activo=bool(fila["activo"]),
             creado_en=fila["creado_en"],
             correo=fila.get("correo"),
+            avatar_base64=fila.get("avatar_base64"),
         )

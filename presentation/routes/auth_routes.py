@@ -43,6 +43,7 @@ def crear_blueprint_auth(caso_de_uso_autenticar: AutenticarUsuarioCasoDeUso) -> 
                 "nombre_usuario": usuario.nombre_usuario,
                 "rol": usuario.rol.value,
                 "correo": usuario.correo,
+                "avatar_base64": usuario.avatar_base64,
             },
         }), 200
 

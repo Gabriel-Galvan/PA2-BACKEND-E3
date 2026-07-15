@@ -23,7 +23,11 @@ from application.use_cases.gestionar_expedientes import (
     ListarExpedientesCasoDeUso,
     ObtenerExpedienteCasoDeUso,
 )
-from application.use_cases.gestionar_perfil import ActualizarCorreoUsuarioCasoDeUso
+from application.use_cases.gestionar_perfil import (
+    ActualizarAvatarUsuarioCasoDeUso,
+    ActualizarCorreoUsuarioCasoDeUso,
+    ActualizarNombreUsuarioCasoDeUso,
+)
 from application.use_cases.gestionar_usuarios import (
     CambiarEstadoUsuarioCasoDeUso,
     CrearUsuarioCasoDeUso,
@@ -97,6 +101,8 @@ def crear_app(config: type[Config] = Config) -> Flask:
     caso_cambiar_estado_usuario = CambiarEstadoUsuarioCasoDeUso(repo_usuarios)
     caso_analizar_imagen = AnalizarImagenCasoDeUso(clasificador_ia)
     caso_actualizar_correo = ActualizarCorreoUsuarioCasoDeUso(repo_usuarios)
+    caso_actualizar_avatar = ActualizarAvatarUsuarioCasoDeUso(repo_usuarios)
+    caso_actualizar_nombre_usuario = ActualizarNombreUsuarioCasoDeUso(repo_usuarios)
     caso_crear_expediente = CrearExpedienteCasoDeUso(
         repo_expedientes, repo_usuarios, detector_celulas, servicio_correo
     )
@@ -132,7 +138,14 @@ def crear_app(config: type[Config] = Config) -> Flask:
             token_requerido,
         )
     )
-    app.register_blueprint(crear_blueprint_perfil(caso_actualizar_correo, token_requerido))
+    app.register_blueprint(
+        crear_blueprint_perfil(
+            caso_actualizar_correo,
+            caso_actualizar_avatar,
+            caso_actualizar_nombre_usuario,
+            token_requerido,
+        )
+    )
     app.register_blueprint(blueprint_salud)
     # NOTA: blueprint_vistas se elimino. El frontend ahora es estatico en Vercel.
 

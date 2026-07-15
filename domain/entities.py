@@ -70,6 +70,7 @@ class Usuario:
     activo: bool = True
     creado_en: datetime | None = None
     correo: str | None = None
+    avatar_base64: str | None = None  # foto de perfil, como data URL (image/...;base64,...)
 
 
 @dataclass

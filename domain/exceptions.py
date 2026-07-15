@@ -50,3 +50,7 @@ class DatosPacienteInvalidosError(ErrorDominio):
 
 class CorreoInvalidoError(ErrorDominio):
     """Se lanza cuando el correo de notificaciones ingresado no tiene un formato valido."""
+
+
+class NombreUsuarioInvalidoError(ErrorDominio):
+    """Se lanza cuando el nuevo nombre de usuario no cumple el formato esperado."""

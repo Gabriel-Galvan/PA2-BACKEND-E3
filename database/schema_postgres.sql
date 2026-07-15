@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS usuarios (
 -- sin este modulo), esto agrega la columna sin romper nada.
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS correo TEXT;
 
+-- Migracion aditiva: foto de perfil del usuario (se guarda como data URL
+-- base64, igual criterio que imagen_datos/imagen_mime de expedientes pero
+-- mas simple porque el avatar siempre se sirve entero, nunca se omite).
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar_base64 TEXT;
+
 INSERT INTO usuarios (nombre_usuario, password_hash, rol, activo, creado_en)
 VALUES (
     'admin',
