@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import socket
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -38,6 +39,31 @@ from domain.entities import Expediente
 from domain.repositories import ServicioCorreo
 
 logger = logging.getLogger(__name__)
+
+
+class _SMTP_SSL_IPv4(smtplib.SMTP_SSL):
+    """
+    Identica a smtplib.SMTP_SSL, pero fuerza la resolucion DNS a una
+    direccion IPv4.
+
+    Por que hace falta: 'smtp.gmail.com' resuelve tanto a direcciones
+    IPv4 como IPv6. Algunas plataformas de hosting (Render incluida,
+    en su plan gratuito/estandar) no tienen salida saliente por IPv6
+    configurada; si el sistema operativo le da a Python una direccion
+    IPv6 primero, la conexion falla con
+    "OSError: [Errno 101] Network is unreachable" aunque el servidor
+    SI tenga salida normal a internet por IPv4. Forzar IPv4 evita ese
+    problema sin perder la validacion del certificado SSL (se le sigue
+    pasando el nombre real del host para el handshake TLS/SNI).
+    """
+
+    def _get_socket(self, host, port, timeout):
+        direcciones_ipv4 = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        ip_v4 = direcciones_ipv4[0][4][0]
+        if self.debuglevel > 0:
+            self._print_debug("connect (forzando IPv4):", (ip_v4, port))
+        nuevo_socket = socket.create_connection((ip_v4, port), timeout, self.source_address)
+        return self.context.wrap_socket(nuevo_socket, server_hostname=host)
 
 
 class SMTPEmailService(ServicioCorreo):
@@ -86,7 +112,7 @@ class SMTPEmailService(ServicioCorreo):
         mensaje.attach(MIMEText(cuerpo_html, "html", "utf-8"))
 
         try:
-            with smtplib.SMTP_SSL(self._host, self._puerto, timeout=15) as servidor:
+            with _SMTP_SSL_IPv4(self._host, self._puerto, timeout=15) as servidor:
                 servidor.login(self._usuario_smtp, self._password_smtp)
                 servidor.sendmail(self._usuario_smtp, [destinatario], mensaje.as_string())
             logger.info("Correo de notificacion enviado a %s (%s)", destinatario, expediente.codigo_expediente)
@@ -132,7 +158,7 @@ class SMTPEmailService(ServicioCorreo):
             mensaje.attach(adjunto)
 
         try:
-            with smtplib.SMTP_SSL(self._host, self._puerto, timeout=15) as servidor:
+            with _SMTP_SSL_IPv4(self._host, self._puerto, timeout=15) as servidor:
                 servidor.login(self._usuario_smtp, self._password_smtp)
                 servidor.sendmail(self._usuario_smtp, [destinatario], mensaje.as_string())
             logger.info("Correo de aviso al paciente enviado a %s (%s)", destinatario, expediente.codigo_expediente)
